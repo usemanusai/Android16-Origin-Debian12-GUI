@@ -154,11 +154,20 @@ print_separator
 rm -f "${CLASH_DEB}" "${BILIBILI_DEB}"
 check_status
 
-# --- Pi-Apps (可选) / Pi-Apps (optional) ---
-echo -e "\n${GREEN}🍰 安装 Pi-Apps / Installing Pi-Apps...${NC}"
-print_separator
-wget -qO- https://raw.githubusercontent.com/Botspot/pi-apps/master/install | bash || \
-    echo -e "${YELLOW}Pi-Apps 安装失败或被跳过 / Pi-Apps install failed or skipped${NC}"
+# --- Pi-Apps (可选) / Pi-Apps (optional, supply-chain warning) ---
+echo
+echo -e "${YELLOW}⚠️  Pi-Apps 安装将执行远程脚本 (wget | bash), 这等同于以 sudo 权限运行任意远程代码。"
+echo -e "    Pi-Apps installation pipes a remote script into bash, which is equivalent to running"
+echo -e "    arbitrary remote code with sudo privileges. Only continue if you trust the source.${NC}"
+read -r -p "是否安装 Pi-Apps? / Install Pi-Apps? (y/N): " install_piapps
+if [[ "$install_piapps" =~ ^[Yy]$ ]]; then
+    echo -e "\n${GREEN}🍰 安装 Pi-Apps / Installing Pi-Apps...${NC}"
+    print_separator
+    wget -qO- https://raw.githubusercontent.com/Botspot/pi-apps/master/install | bash || \
+        echo -e "${YELLOW}Pi-Apps 安装失败或被跳过 / Pi-Apps install failed or skipped${NC}"
+else
+    echo -e "${BLUE}已跳过 Pi-Apps 安装。 / Skipped Pi-Apps install.${NC}"
+fi
 
 # --- 完成提示 / Done ---
 echo -e "\n${GREEN}🎉 所有软件安装完成！/ All software installed!${NC}"

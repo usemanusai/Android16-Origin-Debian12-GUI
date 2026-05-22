@@ -21,13 +21,14 @@ Write-Host "Forwarding TCP 5901 via ADB..."
 # Before forwarding, ensure your device is connected via USB and USB debugging is enabled.
 # 该脚本假设 ADB 已经能正常工作; 如未授权, 请先手动运行 `adb devices`。
 # This script assumes ADB is already working; if not, run `adb devices` first to authorize.
-try {
-    adb forward tcp:5901 tcp:5901
+# 原生命令失败不会抛出异常, 必须显式检查 $LASTEXITCODE / Native commands don't throw - check $LASTEXITCODE explicitly.
+adb forward tcp:5901 tcp:5901
+if ($LASTEXITCODE -eq 0) {
     Write-Host "Port forward OK: localhost:5901 -> device:5901"
-} catch {
-    Write-Error "ADB port-forwarding failed. Ensure ADB is on PATH, device is connected & authorized."
+} else {
+    Write-Error "ADB port-forwarding failed (exit code $LASTEXITCODE). Ensure ADB is on PATH, device is connected & authorized."
     # 端口转发失败时可选择退出 / Uncomment to exit on failure:
-    # exit
+    # exit 1
 }
 
 # 3. 安装 TigerVNC Viewer / Install TigerVNC Viewer
