@@ -1,3 +1,14 @@
+> **Debian 12 与 Debian 13 通用 / Works for both Debian 12 and Debian 13**
+>
+> 本文档原标题为 Debian 12, 但同样适用于 Debian 13 (trixie) 的 rootfs —
+> 只需在 “下载 Debian Rootfs” 一节中替换为对应版本的镜像。Magisk + BusyBox +
+> chroot 的方案与本仓库的 Android 16 / 17 AVF 终端方案无关, 二者互不影响。
+>
+> This guide originally targeted Debian 12, but the same procedure works with a
+> Debian 13 (trixie) rootfs — simply substitute the rootfs URL in the "下载
+> Debian Rootfs" section. This Magisk + BusyBox + chroot approach is independent
+> of the AVF-based Android 16 / 17 Linux Terminal covered by the rest of this repo.
+
 ### 第一部分：核心运行脚本
 
 建议将以下两个脚本保存在手机的 `/data/local/tmp` 或你的内部存储中，方便日后调用。
