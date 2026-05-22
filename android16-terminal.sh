@@ -165,6 +165,16 @@ function prompt_continue() { echo ""; read -r -p "$(lang press_enter)"; }
 function run_cmd() { if ! "$@"; then error "$(printf "$(lang command_fail)" "$*")"; exit 1; fi; }
 function install_package() { local pkg_name=$1; if ! sudo apt install -y "$pkg_name"; then error "$(printf "$(lang install_fail)" "$pkg_name")"; exit 1; fi; info "$(printf "$(lang install_success)" "$pkg_name")"; }
 
+# 启发式检测 AVF VM / Heuristic check: are we running inside the Android Linux Terminal VM?
+function is_android_terminal_vm() {
+    grep -qiE 'crosvm|google,gunyah|android' /proc/cpuinfo 2>/dev/null && return 0
+    [ -d /sys/firmware/devicetree/base/avf ] && return 0
+    if command -v dmesg >/dev/null 2>&1; then
+        dmesg 2>/dev/null | head -50 | grep -qiE 'crosvm|gunyah' && return 0
+    fi
+    return 1
+}
+
 # 检测系统版本 / Detect OS release
 function detect_os() {
     if [ ! -r /etc/os-release ]; then
@@ -179,9 +189,15 @@ function detect_os() {
     fi
     DEBIAN_CODENAME="${VERSION_CODENAME:-}"
     DEBIAN_VERSION_ID="${VERSION_ID:-}"
-    case "$DEBIAN_CODENAME" in
-        bookworm) ANDROID_HINT="Android 16 Linux Terminal / Debian 12" ;;
-        trixie)   ANDROID_HINT="Android 17 Linux Terminal / Debian 13" ;;
+
+    local in_vm="no"
+    if is_android_terminal_vm; then in_vm="yes"; fi
+
+    case "$DEBIAN_CODENAME:$in_vm" in
+        bookworm:yes) ANDROID_HINT="Android 16 Linux Terminal (Debian 12 bookworm)" ;;
+        trixie:yes)   ANDROID_HINT="Android 17 Linux Terminal (Debian 13 trixie)" ;;
+        bookworm:no)  ANDROID_HINT="Debian 12 (bookworm)" ;;
+        trixie:no)    ANDROID_HINT="Debian 13 (trixie)" ;;
         *)
             error "Unsupported Debian codename: '${DEBIAN_CODENAME}'. This script supports only bookworm (12) or trixie (13)."
             exit 1
@@ -271,7 +287,8 @@ EOF
     if ! sudo grep -qE '^\s*Include\s+/etc/ssh/sshd_config\.d/\*\.conf' /etc/ssh/sshd_config; then
         echo "Include /etc/ssh/sshd_config.d/*.conf" | sudo tee -a /etc/ssh/sshd_config > /dev/null
     fi
-    run_cmd sudo systemctl restart ssh 2>/dev/null || run_cmd sudo systemctl restart sshd
+    # On Debian 12/13 the service is 'ssh.service' (with 'sshd.service' aliased to it).
+    run_cmd sudo systemctl restart ssh
     info "$(printf "$(lang config_success)" "/etc/ssh/sshd_config.d/50-android-terminal.conf")"
     info "$(lang ssh_port_prompt)"
 }
