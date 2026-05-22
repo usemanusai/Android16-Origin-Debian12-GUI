@@ -1,17 +1,31 @@
 #!/bin/bash
 
 # ==============================================================================
-# 脚本名称: Debian 桌面环境与远程访问一键安装脚本 (UI语言修正版)
-# 脚本功能: 自动化安装选择的桌面环境并配置好 SSH 和 TigerVNC 远程访问。
-# 适用系统: Debian
-# 特点:
-#   - 修复了脚本交互UI部分中英文显示不一致的问题。
-#   - 全面支持中英文双语界面切换。
+# 脚本名称: Android 16 / 17 Linux Terminal Debian 桌面一键安装脚本
+# Script  : Android 16 / 17 Linux Terminal Debian desktop one-click installer
+#
+# 脚本功能 / Features:
+#   - 自动检测 Debian 版本 (12 bookworm / 13 trixie) 并应用相应配置。
+#   - Auto-detects Debian release (12 bookworm / 13 trixie) and adapts.
+#   - 同时支持 Android 16 (Baklava) 与 Android 17 (Cinnamon Bun) 自带的 Linux 终端。
+#   - Works on both Android 16 (Baklava) and Android 17 (Cinnamon Bun) Linux
+#     Terminal images, as well as any standard Debian 12/13 system.
+#   - 修复了脚本交互 UI 部分中英文显示不一致的问题, 全面支持中英文双语界面切换。
+#   - Unified bilingual UI (CN/EN) across every prompt.
+#
+# 兼容性 / Compatibility:
+#   Android 16  + Debian 12 (bookworm)        ✔
+#   Android 16  + Debian 13 (trixie, upgraded) ✔  (use update_debian13.sh first)
+#   Android 17  + Debian 13 (trixie, default) ✔
+#   普通 Debian 12 / 13 桌面或服务器          ✔
 # ==============================================================================
 
-# --- 全局变量和初始化 ---
+# --- 全局变量和初始化 / Globals ---
 LANG_CHOICE="cn"
 TARGET_USER=$(whoami)
+DEBIAN_CODENAME=""   # bookworm | trixie
+DEBIAN_VERSION_ID="" # 12 | 13
+ANDROID_HINT=""      # human-readable: "Android 16", "Android 17", "Debian"
 
 if [ "$(id -u)" -eq 0 ]; then
   echo -e "\033[0;31m[ERROR]\033[0m 请不要以 root 用户身份运行此脚本。请使用一个普通用户账户运行，脚本会在需要时请求 sudo 权限。"
@@ -19,17 +33,17 @@ if [ "$(id -u)" -eq 0 ]; then
   exit 1
 fi
 
-# --- 颜色定义 ---
+# --- 颜色定义 / Colors ---
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# --- 多语言消息定义 ---
+# --- 多语言消息定义 / Bilingual messages ---
 declare -A messages
 messages=(
-    # --- 通用 ---
+    # --- 通用 / Generic ---
     ["press_enter_cn"]="按回车键继续..."
     ["press_enter_en"]="Press Enter to continue..."
     ["invalid_option_cn"]="无效的选项，请重试。"
@@ -37,23 +51,29 @@ messages=(
     ["operation_cancelled_cn"]="操作已取消。"
     ["operation_cancelled_en"]="Operation cancelled."
 
-    # --- 信息 ---
+    # --- 信息 / Info ---
     ["install_success_cn"]="成功安装 %s"
     ["install_success_en"]="Successfully installed %s"
     ["config_success_cn"]="成功配置 %s"
     ["config_success_en"]="Successfully configured %s"
+    ["detected_os_cn"]="检测到 Debian %s (%s) - %s"
+    ["detected_os_en"]="Detected Debian %s (%s) - %s"
 
-    # --- 错误 ---
+    # --- 错误 / Errors ---
     ["install_fail_cn"]="安装 %s 失败"
     ["install_fail_en"]="Failed to install %s"
     ["config_fail_cn"]="配置 %s 失败"
     ["config_fail_en"]="Failed to configure %s"
     ["command_fail_cn"]="命令执行失败: %s"
     ["command_fail_en"]="Command failed: %s"
-    
-    # --- 流程 ---
-    ["welcome_banner_cn"]="欢迎使用 Debian 桌面环境一键安装脚本"
-    ["welcome_banner_en"]="Welcome to the Debian Desktop Environment One-Click Installer"
+    ["unsupported_os_cn"]="不支持的发行版。本脚本仅支持 Debian 12 (bookworm) 或 Debian 13 (trixie)。"
+    ["unsupported_os_en"]="Unsupported distribution. This script supports only Debian 12 (bookworm) or Debian 13 (trixie)."
+    ["not_debian_cn"]="未检测到 /etc/os-release 或当前系统不是 Debian。已中止。"
+    ["not_debian_en"]="/etc/os-release missing or current system is not Debian. Aborting."
+
+    # --- 流程 / Flow ---
+    ["welcome_banner_cn"]="欢迎使用 Android 16 / 17 终端 Debian 桌面一键安装脚本"
+    ["welcome_banner_en"]="Welcome to the Android 16 / 17 Terminal Debian Desktop One-Click Installer"
     ["select_lang_prompt_cn"]="请选择脚本界面语言 / Please select script UI language:"
     ["select_lang_prompt_en"]="Please select script UI language / 请选择脚本界面语言:"
     ["lang_choice_cn_cn"]="1. 中文 (默认)"
@@ -74,6 +94,8 @@ messages=(
     ["confirm_intro_en"]="The following actions will be performed on your system:"
     ["confirm_user_cn"]="  - 用户: '$TARGET_USER'"
     ["confirm_user_en"]="  - User: '$TARGET_USER'"
+    ["confirm_platform_cn"]="  - 平台: "
+    ["confirm_platform_en"]="  - Platform: "
     ["confirm_desktop_cn"]="  - 安装桌面: "
     ["confirm_desktop_en"]="  - Install Desktop: "
     ["confirm_ssh_cn"]="  - 配置 SSH 服务 (端口 10022)"
@@ -87,8 +109,8 @@ messages=(
     ["update_pkg_en"]="Updating package list..."
     ["upgrade_pkg_cn"]="正在升级已安装的软件包..."
     ["upgrade_pkg_en"]="Upgrading installed packages..."
-    ["ssh_modify_cn"]="正在配置 SSH 服务器..."
-    ["ssh_modify_en"]="Configuring SSH server..."
+    ["ssh_modify_cn"]="正在配置 SSH 服务器 (使用 sshd_config.d 写入独立配置)..."
+    ["ssh_modify_en"]="Configuring SSH server (writing a drop-in under sshd_config.d)..."
     ["ssh_port_prompt_cn"]="SSH 端口已配置为 10022。如果需要，请在防火墙或云服务商安全组中放行此端口。"
     ["ssh_port_prompt_en"]="SSH port is configured to 10022. Please allow it in your firewall or cloud provider's security group if needed."
     ["vnc_port_prompt_cn"]="VNC 服务已配置在 5901 端口。如果需要，请在防火墙或云服务商安全组中放行此端口。"
@@ -114,6 +136,9 @@ messages=(
     ["ime_config_done_cn"]="输入法配置完成，您可能需要在桌面环境中手动启用它。"
     ["ime_config_done_en"]="Input method configured. You may need to enable it manually in the desktop environment."
 
+    ["display_btn_note_cn"]="提示：在 Android 16 QPR2 / Android 17 终端中，您也可以直接点击终端右上角的「显示器」按钮，在 Android 上原生显示 GUI (基于 Wayland + virglrenderer)，无需 VNC。需在 Linux 文件夹下创建空文件 'virglrenderer' 以启用 GPU 加速。"
+    ["display_btn_note_en"]="Tip: On Android 16 QPR2 / Android 17, you can also tap the 'Display' button in the top-right of the Terminal app to render the GUI natively on Android (Wayland + virglrenderer) without VNC. Create an empty file named 'virglrenderer' in the Linux folder to enable GPU acceleration."
+
     ["final_summary_cn"]="🎉 所有配置已完成！"
     ["final_summary_en"]="🎉 All configurations completed!"
     ["final_info_cn"]="您现在可以使用以下信息进行远程连接："
@@ -126,10 +151,12 @@ messages=(
     ["final_vnc_addr_en"]="    VNC Server Address: %s:1"
     ["final_vnc_alt_cn"]="    (或者在客户端中输入 %s 和端口 5901)"
     ["final_vnc_alt_en"]="    (Or enter %s and port 5901 in your client)"
+    ["final_adb_hint_cn"]="  Android 终端用户提示: 在 PC 上执行 'adb forward tcp:5901 tcp:5901'，然后 VNC 连接 localhost:5901。"
+    ["final_adb_hint_en"]="  Android Terminal users: run 'adb forward tcp:5901 tcp:5901' on your PC, then VNC-connect to localhost:5901."
 )
 
-# --- 辅助函数 ---
-function lang() { local key="${1}_${LANG_CHOICE}"; printf -- "${messages[$key]}"; }
+# --- 辅助函数 / Helpers ---
+function lang() { local key="${1}_${LANG_CHOICE}"; printf '%s' "${messages[$key]}"; }
 function info() { echo -e "${GREEN}[INFO]${NC} $1"; }
 function warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 function error() { echo -e "${RED}[ERROR]${NC} $1"; }
@@ -138,24 +165,50 @@ function prompt_continue() { echo ""; read -r -p "$(lang press_enter)"; }
 function run_cmd() { if ! "$@"; then error "$(printf "$(lang command_fail)" "$*")"; exit 1; fi; }
 function install_package() { local pkg_name=$1; if ! sudo apt install -y "$pkg_name"; then error "$(printf "$(lang install_fail)" "$pkg_name")"; exit 1; fi; info "$(printf "$(lang install_success)" "$pkg_name")"; }
 
-# --- 主要功能函数 ---
+# 检测系统版本 / Detect OS release
+function detect_os() {
+    if [ ! -r /etc/os-release ]; then
+        error "/etc/os-release missing or current system is not Debian. Aborting."
+        exit 1
+    fi
+    # shellcheck disable=SC1091
+    . /etc/os-release
+    if [ "${ID:-}" != "debian" ]; then
+        error "Unsupported distribution: ID='${ID:-unknown}'. This script supports only Debian 12/13."
+        exit 1
+    fi
+    DEBIAN_CODENAME="${VERSION_CODENAME:-}"
+    DEBIAN_VERSION_ID="${VERSION_ID:-}"
+    case "$DEBIAN_CODENAME" in
+        bookworm) ANDROID_HINT="Android 16 Linux Terminal / Debian 12" ;;
+        trixie)   ANDROID_HINT="Android 17 Linux Terminal / Debian 13" ;;
+        *)
+            error "Unsupported Debian codename: '${DEBIAN_CODENAME}'. This script supports only bookworm (12) or trixie (13)."
+            exit 1
+            ;;
+    esac
+}
 
-# 步骤1: 用户交互和选择
+# --- 主要功能函数 / Main steps ---
+
+# 步骤1: 用户交互和选择 / User selections
 function user_selections() {
     clear
     banner "$(lang welcome_banner)"
-    
+
     echo -e "$(lang select_lang_prompt)"
     echo "$(lang lang_choice_cn)"
     echo "$(lang lang_choice_en)"
     read -p "$(lang enter_lang_num)" lang_choice_num
     case $lang_choice_num in 2) LANG_CHOICE="en" ;; *) LANG_CHOICE="cn" ;; esac
-    
+
+    info "$(printf "$(lang detected_os)" "$DEBIAN_VERSION_ID" "$DEBIAN_CODENAME" "$ANDROID_HINT")"
+
     read -p "$(lang set_password_prompt)" set_pwd
-    if [[ "$set_pwd" =~ ^[Yy]$ ]]; then sudo passwd $TARGET_USER; fi
+    if [[ "$set_pwd" =~ ^[Yy]$ ]]; then sudo passwd "$TARGET_USER"; fi
 
     banner "$(lang desktop_select)"
-    echo "1. KDE Plasma"; echo "2. GNOME"; echo "3. XFCE"; echo "4. MATE"; echo "5. Cinnamon"; echo "6. LXQt"; echo "7. LXDE"; echo "8. GNOME Flashback (经典模式)"
+    echo "1. KDE Plasma"; echo "2. GNOME"; echo "3. XFCE"; echo "4. MATE"; echo "5. Cinnamon"; echo "6. LXQt"; echo "7. LXDE"; echo "8. GNOME Flashback (经典模式 / classic mode)"
 
     while true; do
         read -p "$(lang enter_desktop_num)" desktop_choice
@@ -176,6 +229,7 @@ function user_selections() {
     banner "$(lang confirm_banner)"
     echo "$(lang confirm_intro)"
     printf "$(lang confirm_user)\n"
+    printf "$(lang confirm_platform)%s\n" "$ANDROID_HINT"
     printf "$(lang confirm_desktop) '$DESKTOP_NAME'\n"
     echo "$(lang confirm_ssh)"
     echo "$(lang confirm_vnc)"
@@ -183,7 +237,7 @@ function user_selections() {
     if [[ ! "$confirm" =~ ^[Yy]$ ]]; then info "$(lang operation_cancelled)"; exit 0; fi
 }
 
-# 步骤2: 系统准备
+# 步骤2: 系统准备 / Prepare system
 function prepare_system() {
     banner "$(lang update_pkg)"; run_cmd sudo apt-get update -y
     banner "$(lang upgrade_pkg)"; run_cmd sudo apt-get upgrade -y
@@ -200,22 +254,36 @@ function prepare_system() {
     fi
 }
 
-# 步骤3: 安装和配置 SSH
+# 步骤3: 安装和配置 SSH / SSH setup
+# 使用 sshd_config.d 下的 drop-in 文件，比直接 sed 主配置文件更安全。
+# Use a sshd_config.d drop-in instead of sed-editing the main config; supported
+# on both Debian 12 (bookworm) and Debian 13 (trixie).
 function setup_ssh() {
     banner "$(lang ssh_modify)"; install_package "openssh-server"
-    sudo sed -i -E -e 's/^#?\s*Port\s+[0-9]+/Port 10022/' -e 's/^#?\s*PasswordAuthentication\s+no/PasswordAuthentication yes/' /etc/ssh/sshd_config
-    if ! sudo grep -q "^PasswordAuthentication" /etc/ssh/sshd_config; then echo "PasswordAuthentication yes" | sudo tee -a /etc/ssh/sshd_config > /dev/null; fi
-    run_cmd sudo systemctl restart sshd; info "$(lang ssh_port_prompt)"
+    sudo mkdir -p /etc/ssh/sshd_config.d
+    sudo tee /etc/ssh/sshd_config.d/50-android-terminal.conf >/dev/null <<'EOF'
+# Managed by android16-terminal.sh - Android 16/17 Linux Terminal helper
+Port 10022
+PasswordAuthentication yes
+EOF
+    # 确保主配置文件包含 Include 指令 (Debian 12/13 默认都已包含, 仅作防御性检查)
+    # Ensure the main config includes sshd_config.d/*.conf (default on both 12 & 13, defensive check).
+    if ! sudo grep -qE '^\s*Include\s+/etc/ssh/sshd_config\.d/\*\.conf' /etc/ssh/sshd_config; then
+        echo "Include /etc/ssh/sshd_config.d/*.conf" | sudo tee -a /etc/ssh/sshd_config > /dev/null
+    fi
+    run_cmd sudo systemctl restart ssh 2>/dev/null || run_cmd sudo systemctl restart sshd
+    info "$(printf "$(lang config_success)" "/etc/ssh/sshd_config.d/50-android-terminal.conf")"
+    info "$(lang ssh_port_prompt)"
 }
 
-# 步骤4: 安装桌面环境
+# 步骤4: 安装桌面环境 / Install desktop
 function install_desktop() {
     banner "$(printf "$(lang desktop_install)" "$DESKTOP_NAME")"
     install_package "tasksel"
-    run_cmd sudo tasksel install $TASKSEL_TASK
+    run_cmd sudo tasksel install "$TASKSEL_TASK"
 }
 
-# 步骤5: 安装和配置 VNC
+# 步骤5: 安装和配置 VNC / VNC setup
 function setup_vnc() {
     banner "$(lang vnc_config)"; install_package "tigervnc-standalone-server"; install_package "tigervnc-common"
     info "$(lang vnc_passwd_prompt)"; run_cmd vncpasswd
@@ -231,22 +299,24 @@ function setup_vnc() {
     info "$(printf "$(lang config_success)" "/etc/tigervnc/vncserver.users")"
     run_cmd sudo systemctl daemon-reload; run_cmd sudo systemctl enable tigervncserver@:1.service; run_cmd sudo systemctl start tigervncserver@:1.service
     info "$(lang vnc_port_prompt)"
+    info "$(lang display_btn_note)"
 }
 
-# 步骤6: 可选组件
+# 步骤6: 可选组件 / Optional components
 function optional_components() {
     read -p "$(lang input_method_prompt)" install_ime
     if [[ "$install_ime" =~ ^[Yy]$ ]]; then
         banner "$(lang ime_install_banner)"
         install_package "ibus"; install_package "ibus-pinyin"
-        im-config -n ibus
+        im-config -n ibus || true
         info "$(lang ime_config_done)"
     fi
 }
 
-# 步骤7: 显示最终信息
+# 步骤7: 显示最终信息 / Final summary
 function final_summary() {
-    IP_ADDR=$(hostname -I | awk '{print $1}')
+    IP_ADDR=$(hostname -I 2>/dev/null | awk '{print $1}')
+    [ -z "$IP_ADDR" ] && IP_ADDR="127.0.0.1"
     clear; banner "$(lang final_summary)"; echo "$(lang final_info)"
     echo ""; echo -e "$(lang final_ssh_header)"
     echo -e "    ssh $TARGET_USER@$IP_ADDR -p 10022"
@@ -254,12 +324,21 @@ function final_summary() {
     printf "    $(lang final_vnc_addr)\n" "$IP_ADDR"
     printf "    $(lang final_vnc_alt)\n" "$IP_ADDR"
     echo ""
+    echo -e "$(lang final_adb_hint)"
+    echo ""
 }
 
-# --- 主程序入口 ---
+# --- 主程序入口 / Main entry ---
 function main() {
-    user_selections; prepare_system; setup_ssh; install_desktop; setup_vnc; optional_components; final_summary
+    detect_os
+    user_selections
+    prepare_system
+    setup_ssh
+    install_desktop
+    setup_vnc
+    optional_components
+    final_summary
 }
 
-# 执行主函数
+# 执行主函数 / Run
 main

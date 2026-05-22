@@ -1,31 +1,51 @@
-# 1. 安装 ADB 和平台工具
+# ============================================================================
+#  Android 16 / 17 Linux Terminal - PC 端 VNC 自动连接脚本
+#  Android 16 / 17 Linux Terminal - PC-side VNC auto-connect helper
+#
+#  适用 / Works with:
+#    - Windows 10/11 (PowerShell 5.1+ 或 PowerShell 7+)
+#    - Android 16 (Baklava) Linux Terminal + Debian 12
+#    - Android 17 (Cinnamon Bun) Linux Terminal + Debian 13
+#  脚本与 Android 主版本无关, 它只负责 PC 上的 ADB 端口转发 + VNC 客户端启动。
+#  This script is independent of the Android version - it only handles ADB
+#  port-forwarding and the VNC client on the PC side.
+# ============================================================================
+
+# 1. 安装 ADB 和平台工具 / Install ADB & Android platform-tools
+Write-Host "Installing Android platform-tools (ADB)..."
 winget install --id Google.PlatformTools --source winget --accept-package-agreements --accept-source-agreements
 
-# 2. ADB 端口转发
-Write-Host "正在进行 ADB 端口转发..."
-# 使用 ping 命令来判断 ADB 是否可用，并等待设备连接。
-# 在执行 ADB 转发之前，请确保你的 Android 设备已经通过 USB 连接到电脑并开启了 USB 调试模式。
-# 这个脚本假设 ADB 已经能正常工作，如果没有，你可能需要手动进行一次 `adb devices` 命令来授权。
+# 2. ADB 端口转发 / ADB port forwarding (host:5901 -> guest:5901)
+Write-Host "Forwarding TCP 5901 via ADB..."
+# 执行 ADB 转发前, 请确保设备已通过 USB 连接并启用 USB 调试模式。
+# Before forwarding, ensure your device is connected via USB and USB debugging is enabled.
+# 该脚本假设 ADB 已经能正常工作; 如未授权, 请先手动运行 `adb devices`。
+# This script assumes ADB is already working; if not, run `adb devices` first to authorize.
 try {
     adb forward tcp:5901 tcp:5901
-    Write-Host "端口转发成功：5901 -> 5901"
+    Write-Host "Port forward OK: localhost:5901 -> device:5901"
 } catch {
-    Write-Error "ADB 端口转发失败。请确保 ADB 环境变量已配置，且设备已连接并授权。"
-    # 如果端口转发失败，可以选择退出脚本
+    Write-Error "ADB port-forwarding failed. Ensure ADB is on PATH, device is connected & authorized."
+    # 端口转发失败时可选择退出 / Uncomment to exit on failure:
     # exit
 }
 
-# 3. 安装 TigerVNC Viewer
+# 3. 安装 TigerVNC Viewer / Install TigerVNC Viewer
+Write-Host "Installing TigerVNC Viewer..."
 winget install --id TigerVNC.TigerVNC --source winget --accept-package-agreements --accept-source-agreements
 
-# 4. 将 TigerVNC 目录添加到环境变量（仅在当前会话生效）
+# 4. 将 TigerVNC 目录加入 PATH (仅当前会话生效) / Add TigerVNC to PATH (current session only)
 $env:Path += ";C:\Program Files\TigerVNC\"
 
-# 5. 运行 VNC Viewer
-Write-Host "正在启动 VNC Viewer..."
-# 在运行前，请确保你的目标设备上已经运行了 VNC 服务器，并且监听端口为 5901。
-# 脚本会等待用户按任意键后再启动 VNC Viewer，以便用户有时间检查或准备。
-Read-Host "请确保你的 Android 设备上 VNC 服务器已运行，并按任意键启动 VNC Viewer..."
+# 5. 启动 VNC Viewer / Launch VNC Viewer
+Write-Host "Launching VNC Viewer..."
+# 启动前请确认设备上的 VNC 服务器已运行 (端口 5901)。
+# Confirm the VNC server is running on port 5901 on the device before continuing.
+# 提示: Android 16 QPR2 / Android 17 自带「显示器」按钮, 可在 Android 上直接显示 GUI,
+# 无需 VNC; 但 VNC 仍是更稳定的远程方案。
+# Tip: Android 16 QPR2 / Android 17 expose a 'Display' button that renders the GUI
+# natively on Android (no VNC), but VNC remains the more reliable remote option.
+Read-Host "Make sure the VNC server is running on your device, then press Enter to launch VNC Viewer"
 vncviewer.exe 127.0.0.1::5901
 
-Write-Host "脚本执行完毕。"
+Write-Host "Done. / 脚本执行完毕。"
