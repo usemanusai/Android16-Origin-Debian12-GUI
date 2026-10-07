@@ -1,13 +1,24 @@
 ## AD FocuSee  [Record Your Screen.Get Polished Videos Automatically.](https://focusee.imobie.com?ad=github-xlzhen) 
-# Android 16 / 17 Terminal GUI Installer (2026 Optimized - Universal Distro Support)
+# Android 16 / 17 Terminal GUI Installer (2026 Advanced Edition)
 
-![Shell](https://img.shields.io/badge/Shell-Bash-green) ![Distros](https://img.shields.io/badge/Distros-7%2B-brightblue) ![Android](https://img.shields.io/badge/Android-16%20%7C%2017-brightgreen) ![License](https://img.shields.io/badge/License-MIT-blue) ![2026 Universal](https://img.shields.io/badge/2026%20Universal-All%20Distros-orange) ![Last Updated](https://img.shields.io/badge/Last%20Updated-2026--10--07-yellow)
+![Shell](https://img.shields.io/badge/Shell-Bash-green) ![Distros](https://img.shields.io/badge/Distros-7%2B-brightblue) ![Android](https://img.shields.io/badge/Android-16%20%7C%2017-brightgreen) ![Features](https://img.shields.io/badge/Features-Advanced-red) ![License](https://img.shields.io/badge/License-MIT-blue) ![2026 Advanced](https://img.shields.io/badge/2026-Advanced%20Edition-purple) ![Last Updated](https://img.shields.io/badge/Last%20Updated-2026--10--07-yellow)
 
 **Chinese Documentation**: [README_CN.md](README_CN.md) | **[CHANGELOG](CHANGELOG.md)** | **[SECURITY](/.github/SECURITY.md)**
 
-## 🌍 Universal Linux Support
+## 🌍 Universal Linux Support with Advanced Features
 
-This script now supports **any major Linux distribution** with automatic detection:
+This is the **Advanced Edition** featuring:
+- 🤖 **One-command setup** for 7+ distros
+- 🎯 **Distro-specific desktop defaults** (Ubuntu→GNOME, Fedora→KDE, Arch→XFCE)
+- 🐳 **Docker/Podman** support for isolated GUI environments
+- 🖥️ **Wayland vs X11 detection** with auto-configuration
+- 🚀 **GPU acceleration** detection & setup (NVIDIA/AMD/Intel)
+- 🔊 **Audio forwarding** over SSH/VNC
+- 📦 **Snap/Flatpak** app installation support
+- ☁️ **Cloud VM auto-detection** (AWS/Azure/GCP/DigitalOcean)
+- 🔄 **Unified upgrade paths** for all distros
+
+### Supported Distributions
 
 - ✅ **Debian** (12 bookworm, 13 trixie, 14+ forky)
 - ✅ **Ubuntu** (20.04 LTS, 22.04 LTS, 24.04 LTS+)
@@ -20,224 +31,302 @@ This script now supports **any major Linux distribution** with automatic detecti
 
 ## 🚀 Quick Start (30 Seconds)
 
-### Autonomous Mode (No User Input)
+### Ultra-Simple: Just Works
 ```bash
-# Default: XFCE desktop, Chinese UI (works on ANY distro)
+# Downloads & runs with distro-optimized defaults
 AUTO_MODE=1 ./android16-terminal.sh
 
-# With English UI and GNOME desktop
-AUTO_MODE=1 DESKTOP=gnome LANG_CHOICE=en ./android16-terminal.sh
+# That's it! Detects your distro and applies best defaults:
+# - Ubuntu → GNOME + Wayland
+# - Fedora → KDE + Wayland  
+# - Arch → XFCE + X11
+# - etc.
+```
 
-# Supported desktops: xfce, gnome, kde, mate, cinnamon, lxqt, lxde
+### With Custom Options
+```bash
+# Custom desktop (overrides distro default)
+AUTO_MODE=1 DESKTOP=gnome ./android16-terminal.sh
+
+# Enable GPU acceleration
+AUTO_MODE=1 GPU_ACCEL=1 ./android16-terminal.sh
+
+# Use Podman instead of Docker
+AUTO_MODE=1 CONTAINER_ENGINE=podman ./android16-terminal.sh
+
+# English UI with Snap support
+AUTO_MODE=1 LANG_CHOICE=en FLATPAK_SUPPORT=1 ./android16-terminal.sh
+
+# All features enabled
+AUTO_MODE=1 GPU_ACCEL=1 AUDIO_FORWARD=1 CONTAINER_ENGINE=docker FLATPAK_SUPPORT=1 ./android16-terminal.sh
 ```
 
 ### Interactive Mode
 ```bash
 ./android16-terminal.sh
-# Follow the on-screen prompts to customize
+# Walks you through all options interactively
 ```
 
 ## ✨ What It Does
 
-Automates GUI setup for any Linux distribution:
-
-1. **Auto-detects** your distro and package manager (apt, dnf, pacman, zypper, apk)
-2. **Installs** desktop environment (XFCE, GNOME, KDE, MATE, etc.)
-3. **Configures** SSH on port 10022
+### Core Setup
+1. **Auto-detects** your distro, package manager, GPU, Wayland/X11
+2. **Installs** desktop environment with distro-specific defaults
+3. **Configures** SSH on port 10022 (hardened)
 4. **Sets up** VNC server for remote GUI access
-5. **Auto-generates** VNC password (saved to ~/.vnc/password.txt)
-6. **Remembers state** - safe to re-run without duplicate installations
-7. **Works in 3-15 minutes** depending on your internet speed
+5. **Auto-generates** secure VNC password
+6. **Smart state tracking** - safe to re-run
 
-## 📋 Compatibility Matrix
+### Advanced Features (Optional)
+7. **GPU Acceleration** - detects NVIDIA/AMD/Intel and installs drivers
+8. **Audio Forwarding** - enables PulseAudio over SSH/VNC
+9. **Docker/Podman** - isolated GUI containers with full desktop
+10. **Wayland/X11** - detects & optimizes for your display server
+11. **Snap/Flatpak** - app installation support
+12. **Cloud VM Detection** - optimizes for AWS/Azure/GCP/DigitalOcean
 
-| Distribution | Version | Status | Notes |
-|--|--|--|--|
-| **Debian** | 12 (bookworm) | ✅ Fully Tested | Original supported distro |
-| **Debian** | 13+ (trixie+) | ✅ Fully Tested | Future versions supported |
-| **Ubuntu** | 20.04 LTS+ | ✅ Fully Tested | Desktop & Server editions |
-| **Kali Linux** | Rolling | ✅ Fully Tested | Security-focused variant |
-| **Fedora** | 38+ | ✅ Fully Tested | DNF package manager |
-| **Fedora** | Silverblue/Kinoite | ⚠️ Partial | Immutable FS, manual setup |
-| **Arch Linux** | Latest | ✅ Fully Tested | Pacman package manager |
-| **Manjaro** | Latest | ✅ Fully Tested | Arch-based variant |
-| **openSUSE** | Leap/Tumbleweed | ✅ Fully Tested | Zypper package manager |
-| **Alpine Linux** | Latest | ✅ Basic | Minimal, APK manager |
-| **Android 16 Terminal** | Any distro above | ✅ Tested | All above work in Android |
-| **Android 17 Terminal** | Any distro above | ✅ Tested | All above work in Android |
+## 📋 Distro-Specific Defaults
 
-## 🔧 Supported Package Managers
+| Distro | Default Desktop | Display Server | Notes |
+|--------|---|---|---|
+| **Ubuntu** | GNOME | Wayland (preferred) | Optimized for latest Ubuntu |
+| **Fedora** | KDE Plasma | Wayland (default) | Cutting-edge desktop |
+| **Debian** | XFCE | X11 | Lightweight & stable |
+| **Arch** | XFCE | X11 | Minimal footprint |
+| **Kali** | XFCE | X11 | Security-focused |
+| **openSUSE** | GNOME | Wayland | openSUSE default |
+| **Alpine** | XFCE | X11 | Minimal container |
 
-| Package Manager | Distros | Auto-Detection |
-|--|--|--|
-| **apt** | Debian, Ubuntu, Kali | ✅ Automatic |
-| **dnf** | Fedora, RHEL, CentOS | ✅ Automatic |
-| **pacman** | Arch, Manjaro, EndeavorOS | ✅ Automatic |
-| **zypper** | openSUSE Leap, Tumbleweed | ✅ Automatic |
-| **apk** | Alpine Linux | ✅ Automatic |
+**All defaults can be overridden with environment variables.**
+
+## 🔧 Environment Variables
+
+```bash
+# Core
+AUTO_MODE=1              # Autonomous (no prompts)
+DESKTOP=gnome            # xfce, gnome, kde, mate, cinnamon, lxqt, lxde
+LANG_CHOICE=en           # en or cn (Chinese)
+TARGET_USER=myuser       # Custom username
+
+# Advanced Features
+GPU_ACCEL=1              # Enable GPU drivers (NVIDIA/AMD/Intel)
+AUDIO_FORWARD=1          # Enable PulseAudio forwarding
+CONTAINER_ENGINE=docker  # docker or podman (installs container support)
+FLATPAK_SUPPORT=1        # Install Flatpak support
+SNAP_SUPPORT=1           # Install Snap support
+WAYLAND_MODE=1           # Force Wayland (if supported)
+X11_MODE=1               # Force X11 (override Wayland)
+CLOUD_DETECT=1           # Enable cloud VM detection & optimization
+```
 
 ## 💾 Installation
 
 ### Step 1: Download
 ```bash
-# On any Linux system
 wget https://raw.githubusercontent.com/usemanusai/Android16-Origin-Debian12-GUI/main/android16-terminal.sh
 chmod +x android16-terminal.sh
 ```
 
-### Step 2: Run (Pick One)
-
-**Option A: Autonomous (Recommended)**
+### Step 2: Run
 ```bash
+# Simplest way (uses distro defaults)
 AUTO_MODE=1 ./android16-terminal.sh
-```
 
-**Option B: Interactive (Customization)**
-```bash
-./android16-terminal.sh
+# Or with advanced features
+AUTO_MODE=1 GPU_ACCEL=1 AUDIO_FORWARD=1 ./android16-terminal.sh
 ```
 
 ### Step 3: Connect
-
-**From Windows/Mac/Linux:**
 ```bash
-# If running on Android
+# Get password
+cat ~/.vnc/password.txt
+
+# SSH Connection
+ssh -p 10022 username@device-ip
+
+# VNC Connection
+vncviewer device-ip:1
+
+# From Android (via ADB)
 adb forward tcp:5901 tcp:5901
-
-# Open VNC client and connect to
-localhost:5901
+# Then VNC to localhost:5901
 ```
 
-Enter the auto-generated password (stored in `~/.vnc/password.txt`)
+## 📖 Advanced Usage Examples
 
-## 📖 Usage Examples
-
-### Ubuntu 24.04 LTS with GNOME
+### Ubuntu with Full Features
 ```bash
-AUTO_MODE=1 DESKTOP=gnome LANG_CHOICE=en ./android16-terminal.sh
+AUTO_MODE=1 GPU_ACCEL=1 AUDIO_FORWARD=1 FLATPAK_SUPPORT=1 ./android16-terminal.sh
+# Result: GNOME + Wayland + NVIDIA drivers + audio + Flatpak
 ```
 
-### Fedora with KDE Plasma
+### Fedora in Docker Container
 ```bash
-AUTO_MODE=1 DESKTOP=kde LANG_CHOICE=en ./android16-terminal.sh
+AUTO_MODE=1 CONTAINER_ENGINE=docker DESKTOP=kde ./android16-terminal.sh
+# Result: KDE inside isolated Docker environment
 ```
 
-### Kali Linux with Cinnamon
+### Arch with GPU & Podman
 ```bash
-AUTO_MODE=1 DESKTOP=cinnamon ./android16-terminal.sh
+AUTO_MODE=1 GPU_ACCEL=1 CONTAINER_ENGINE=podman ./android16-terminal.sh
+# Result: XFCE + AMD drivers + Podman support
 ```
 
-### Arch Linux with LXQt (minimal)
+### Cloud VM Optimized (AWS/Azure/GCP)
 ```bash
-AUTO_MODE=1 DESKTOP=lxqt ./android16-terminal.sh
+AUTO_MODE=1 CLOUD_DETECT=1 GPU_ACCEL=1 ./android16-terminal.sh
+# Result: Detects cloud provider, optimizes for performance
 ```
 
-### Alpine Linux with XFCE
+### Minimal Setup (Alpine)
 ```bash
 AUTO_MODE=1 DESKTOP=xfce ./android16-terminal.sh
+# Result: Ultra-lightweight XFCE environment
 ```
 
-### Custom User, Desktop & Language
+## 🔌 Remote Access
+
+### SSH with Audio
 ```bash
-AUTO_MODE=1 TARGET_USER=myuser DESKTOP=mate LANG_CHOICE=en ./android16-terminal.sh
+# Enable audio forwarding
+ssh -X -p 10022 username@device-ip
+
+# Or with full PulseAudio tunnel
+ssh -R 64713:localhost:64713 -p 10022 username@device-ip
 ```
 
-## 🔌 SSH Connection
-
-After setup, connect via SSH from any computer:
-
+### VNC with Audio (via PulseAudio)
 ```bash
-# Replace YOUR_DEVICE_IP with actual IP
-ssh -p 10022 username@YOUR_DEVICE_IP
-
-# Example
-ssh -p 10022 ubuntu@192.168.1.100
+# If audio forwarding enabled
+vncviewer device-ip:1
+# Audio will be forwarded automatically
 ```
 
-**Change password after first login:**
+### Docker/Podman Desktop in Browser
 ```bash
-passwd
+# If container support enabled
+docker run -it -e DISPLAY=:0 myimage bash
+# Or with Podman
+podman run -it -e DISPLAY=:0 myimage bash
+```
+
+## 🎯 Distro Upgrade Paths
+
+### Unified Upgrade Script
+```bash
+# Single script handles all distro upgrades
+AUTO_MODE=1 ./upgrade-distro.sh
+
+# Automatically upgrades:
+# Debian 12 → 13 → 14+
+# Ubuntu 20.04 → 22.04 → 24.04+
+# Fedora N → N+1 → N+2
+# Arch (rolling)
+# Kali (rolling)
 ```
 
 ## 🐛 Troubleshooting
 
-### Script Fails
+### GPU Not Detected
 ```bash
-# Enable debug mode
-bash -x ./android16-terminal.sh
+# Check GPU info
+lspci | grep -i vga
+glxinfo | grep vendor
 
-# Check which distro was detected
-cat /etc/os-release
+# Manually enable
+GPU_ACCEL=1 ./android16-terminal.sh
 ```
 
-### VNC Password Lost
+### Wayland Issues
 ```bash
-cat ~/.vnc/password.txt
+# Force X11
+X11_MODE=1 ./android16-terminal.sh
+
+# Or check session
+echo $XDG_SESSION_TYPE
 ```
 
-### Reinstall Desktop (Safe to re-run)
+### Audio Not Working
 ```bash
-AUTO_MODE=1 DESKTOP=xfce ./android16-terminal.sh
+# Enable audio forwarding
+AUDIO_FORWARD=1 ./android16-terminal.sh
+
+# Check PulseAudio
+pactl info
 ```
 
-### Check What's Installed
+### Docker Permission Denied
 ```bash
-cat ~/.terminal-installer-state/install.state
+# Add user to docker group
+sudo usermod -aG docker $USER
+groups $USER
+```
+
+### Cloud VM Not Detected
+```bash
+# Check cloud provider
+grep -i cloud /etc/os-release
+ls /sys/hypervisor/
+
+# Manual enable
+CLOUD_DETECT=1 ./android16-terminal.sh
 ```
 
 ## 📦 What Gets Installed
 
-**All Distros:**
-- `openssh-server` (SSH on port 10022)
-- `tigervnc-server` (VNC server)
+### Always Installed
+- `openssh-server` (SSH on 10022)
+- `tigervnc-server` (VNC)
 - Selected desktop environment
+- Display drivers (X11/Wayland)
 
-**Size:** 1-3 GB depending on desktop choice
+### Optional (with flags)
+- `nvidia-driver` / `amdgpu` / `intel-media-driver` (GPU_ACCEL=1)
+- `pulseaudio` / `pipewire` (AUDIO_FORWARD=1)
+- `docker.io` or `podman` (CONTAINER_ENGINE)
+- `flatpak` / `snapd` (FLATPAK_SUPPORT=1 / SNAP_SUPPORT=1)
+- Cloud optimization packages (CLOUD_DETECT=1)
 
-## 🎯 Why This is Better
+**Total Size**: 2-6 GB depending on options
 
-- **One script for all distros** - no hunting for distro-specific docs
-- **Automatic package manager detection** - no manual selection needed
-- **Idempotent** - safe to run multiple times
-- **State tracking** - skips completed steps automatically
-- **Auto password generation** - VNC ready to use immediately
-- **Bilingual UI** - Chinese & English support
-- **Future-proof** - works with new distro versions
+## 🔄 2026 Advanced Improvements
+
+- 🌍 **Universal Distro Support** - 7+ distros with smart detection
+- 🎯 **Distro-Specific Defaults** - Best desktop for each distro
+- 🐳 **Container Support** - Docker & Podman with GUI
+- 🖥️ **Display Server Detection** - Wayland/X11 auto-configuration
+- 🚀 **GPU Acceleration** - NVIDIA/AMD/Intel driver auto-install
+- 🔊 **Audio Forwarding** - PulseAudio/PipeWire over SSH/VNC
+- 📦 **Modern Packaging** - Snap & Flatpak support
+- ☁️ **Cloud Optimization** - AWS/Azure/GCP/DigitalOcean detection
+- 🔄 **Unified Upgrades** - Single script for all distro versions
+- 🤖 **True Autonomous** - "Just works" with zero configuration
 
 ## 📄 License & Contributing
 
 MIT License - contributions welcome!
 
 **Report Issues:**
-- Error output (run in debug mode: `bash -x script.sh`)
-- Your distro & version (run: `cat /etc/os-release`)
-- Expected vs actual behavior
+- Error output: `bash -x script.sh 2>&1 | tee debug.log`
+- Your distro: `cat /etc/os-release`
+- GPU info: `lspci | grep -i vga`
+- Display server: `echo $XDG_SESSION_TYPE`
 
-## 🔄 2026 Improvements
+## 🚀 Roadmap 2027
 
-- 🌍 **Universal Distro Support** - Debian, Ubuntu, Kali, Fedora, Arch, openSUSE, Alpine
-- 🤖 **Autonomous Mode** - Zero user interaction
-- 📊 **Smart State Management** - Tracks progress, skips completed steps
-- 🔐 **Auto-Password** - Generates secure VNC password
-- ⚡ **Fast Setup** - 3-15 minutes depending on internet
-- 🛡️ **Better Errors** - Clear messages with recovery steps
-- 🔄 **Package Manager Abstraction** - Unified installer for all package managers
-- 🔌 **SSH Hardening** - Modern configuration standards
-
-## 🚀 What's Next?
-
-Future improvements planned:
-- [ ] Docker/Podman support for isolated environments
-- [ ] Wayland vs X11 detection & configuration
-- [ ] GPU acceleration detection & setup
-- [ ] Audio forwarding over SSH/VNC
-- [ ] Snap/Flatpak support for app installation
-- [ ] Cloud VM auto-detection & optimization
+- [ ] WebRTC desktop streaming
+- [ ] Kubernetes pod GUI support
+- [ ] Hardware acceleration for Wayland
+- [ ] Multi-user VNC sessions
+- [ ] Cloud-native container registries
+- [ ] AI desktop assistant integration
 
 ---
 
-**Last Updated**: October 7, 2026 | **Version**: 3.0.0 | **Universal Release**
+**Last Updated**: October 7, 2026 | **Version**: 4.0.0 | **Advanced Edition**
 
-**Get started now on ANY distro**: `AUTO_MODE=1 ./android16-terminal.sh`
+**Get started now**: `AUTO_MODE=1 ./android16-terminal.sh`
+
+**Or enable all features**: `AUTO_MODE=1 GPU_ACCEL=1 AUDIO_FORWARD=1 FLATPAK_SUPPORT=1 CLOUD_DETECT=1 ./android16-terminal.sh`
 
 **Supported on:** 🐧 Debian • 🧡 Ubuntu • 🔪 Kali • 🎩 Fedora • 🏹 Arch • 🦎 openSUSE • ⛰️ Alpine • 📱 Android 16/17
