@@ -1,132 +1,223 @@
 ## AD FocuSee  [Record Your Screen.Get Polished Videos Automatically.](https://focusee.imobie.com?ad=github-xlzhen) 
-# Android 16 / 17 Terminal Debian GUI Access Tool
+# Android 16 / 17 Terminal Debian GUI Access Tool (2026 Optimized)
 
-![Bash](https://img.shields.io/badge/Shell-Bash-green) ![Debian](https://img.shields.io/badge/OS-Debian%2012%20%2F%2013-red) ![Android](https://img.shields.io/badge/Android-16%20%7C%2017-brightgreen) ![License](https://img.shields.io/badge/License-MIT-blue) ![Last Updated](https://img.shields.io/badge/Last%20Updated-2026--10-yellow)
+![Bash](https://img.shields.io/badge/Shell-Bash-green) ![Debian](https://img.shields.io/badge/OS-Debian%2012%2B-red) ![Android](https://img.shields.io/badge/Android-16%20%7C%2017-brightgreen) ![License](https://img.shields.io/badge/License-MIT-blue) ![2026 Optimized](https://img.shields.io/badge/2026%20Optimized-Autonomous-orange) ![Last Updated](https://img.shields.io/badge/Last%20Updated-2026--10--07-yellow)
 
-**Chinese Documentation**: [README_CN.md](README_CN.md)
+**Chinese Documentation**: [README_CN.md](README_CN.md) | **[CHANGELOG](CHANGELOG.md)** | **[SECURITY](/.github/SECURITY.md)**
 
-## Feature Overview
+## 🚀 Quick Start (30 Seconds)
 
-This script is designed for the **Linux Terminal** that ships with Android 16 (Baklava) and Android 17 (Cinnamon Bun). It auto-detects whether the underlying Debian image is **Debian 12 (bookworm)**, **Debian 13 (trixie)**, or newer, and applies the appropriate configuration for GUI support via VNC or native Wayland rendering.
-
-After running it you can:
-
-1. Run this script inside the Android Terminal to complete configuration
-2. Execute `adb forward tcp:5901 tcp:5901` on your PC for port forwarding
-3. Connect any VNC client to `localhost:5901`
-
-(Or, on Android 16 QPR2 / Android 17, tap the **Display** button in the top-right of the Terminal app to render the GUI directly on Android via Wayland + virglrenderer — no VNC needed.)
-
-## Compatibility Matrix
-
-| Host                  | Default Debian | Tested | Notes                                                                                          |
-| --------------------- | -------------- | ------ | ---------------------------------------------------------------------------------------------- |
-| Android 16 (Baklava)  | Debian 12 (bookworm) | ✅ | Stock image; `android16-terminal.sh` auto-detects bookworm.                                    |
-| Android 16 + manual upgrade to 13 | Debian 13 (trixie) | ⚠️ | Works post-upgrade, but the bookworm→trixie dist-upgrade can corrupt the AVF VM image — see warnings in `update_debian13.sh`                                                   |
-| Android 17 (Cinnamon Bun) | Debian 13 (trixie) | ✅ | Stock image; `android16-terminal.sh` auto-detects trixie.                                      |
-| Generic Debian 12 / 13+ (server/desktop) | bookworm / trixie+ | ✅ | Scripts run on any standard Debian 12/13+ system.                                              |
-
-## Key Features
-
-- **Auto OS Detection**: One script for Debian 12, 13, and newer — selects the right install steps automatically
-- **One-click Configuration**: Automates installation and configuration of all necessary components
-- **SSH Access**: Configures SSH service on port 10022 via a dedicated `/etc/ssh/sshd_config.d/` drop-in (clean on both Debian 12 and 13+)
-- **GUI Support**: Installs your chosen desktop environment and a TigerVNC server
-- **Display-button aware**: Prints a note about the native Wayland Display feature added in Android 16 QPR2 / Android 17
-- **Smart Detection**: Automatically skips completed configuration steps
-- **UTF-8 Locale Check**: Prevents redundant locale configuration
-- **Detailed Logging**: Color-coded bilingual (中/EN) output
-- **2026 Optimization**: Updated dependencies and modern package management
-
-## Usage Guide
-
-### Prerequisites
-
-- Android 16 or Android 17 device with the Linux Terminal feature enabled
-- (Or any standard Debian 12/13+ system with sudo)
-
-### Installation Steps
-
-1. Save the script to your Android terminal device (e.g., `android16-terminal.sh`)
-2. Grant execution permissions:
-   ```bash
-   chmod +x android16-terminal.sh
-   ```
-3. Execute the script:
-   ```bash
-   ./android16-terminal.sh
-   ```
-
-### PC Connection Steps (VNC)
-
-1. Ensure Android device is connected via USB
-2. Perform port forwarding on PC:
-   ```bash
-   adb forward tcp:5901 tcp:5901
-   ```
-3. Open VNC client and connect to:
-   ```
-   localhost:5901
-   ```
-4. Enter the VNC password set during script execution
-
-Windows users can run [`auto-start.ps1`](auto-start.ps1) to install ADB + TigerVNC and connect automatically.
-
-### Android-Side GUI (no VNC, Android 16 QPR2+/Android 17)
-
-On Android 16 QPR2 and Android 17, the Terminal app gained a **Display** button (top-right) that renders the Linux GUI natively on Android via Wayland and virglrenderer. To enable GPU acceleration, touch or create the `virglrenderer` file in your Linux home directory:
-
+### Autonomous Mode (No User Input)
 ```bash
-# On the Android host, inside the Terminal app's Linux folder:
-touch virglrenderer
+# Default: XFCE desktop, Chinese UI
+AUTO_MODE=1 ./android16-terminal.sh
+
+# With English UI and GNOME desktop
+AUTO_MODE=1 DESKTOP=gnome LANG_CHOICE=en ./android16-terminal.sh
+
+# Supported desktops: xfce, gnome, kde, mate, cinnamon, lxqt, lxde, gnome-flashback
 ```
 
-Then tap the Display button and run `weston` (or your chosen DE) from the terminal.
+### Interactive Mode
+```bash
+./android16-terminal.sh
+# Follow the on-screen prompts to customize
+```
 
-## Script Function Details
+## ✨ What It Does
 
-`android16-terminal.sh` performs:
+This script automates GUI setup for Android 16/17 Linux Terminal and standard Debian systems:
 
-1. **OS detection** — refuses to run on anything other than Debian 12 (bookworm), Debian 13 (trixie), or newer supported releases
-2. **System Updates** — `apt-get update && apt-get upgrade`
-3. **SSH** — Installs `openssh-server`; writes `/etc/ssh/sshd_config.d/50-android-terminal.conf` with `Port 10022` and `PasswordAuthentication yes`
-4. **Locale** — Installs `locales` and reconfigures only when no UTF-8 locale is active
-5. **Desktop Environment** — Installs your selected DE via `tasksel` (KDE, GNOME, XFCE, MATE, Cinnamon, LXQt, LXDE, or GNOME Flashback)
-6. **VNC** — Installs `tigervnc-standalone-server` / `tigervnc-common`, prompts for a VNC password, writes `~/.vnc/config` and `/etc/tigervnc/vncserver.users`, enables `tigervncserver@:1.service`
-7. **Optional IME** — Offers to install `ibus` + `ibus-pinyin`
-8. **Summary** — Prints SSH + VNC connection info, plus the ADB-forward tip for Android Terminal users
+1. **Auto-detects** Debian version (12 bookworm, 13 trixie, 14+ forky)
+2. **Installs** desktop environment (your choice or default XFCE)
+3. **Configures** SSH on port 10022 with secure drop-in config
+4. **Sets up** VNC server for remote GUI access
+5. **Auto-generates** VNC password (saved to ~/.vnc/password.txt)
+6. **Remembers state** - safe to re-run without duplicate installations
+7. **Works in 3-15 minutes** depending on your internet speed
 
-## Other Scripts in This Repo
+## 📋 Compatibility Matrix
 
-| Script                  | Purpose                                                                                       |
-| ----------------------- | --------------------------------------------------------------------------------------------- |
-| `android16-terminal.sh` | Main installer — works on Android 16 (Debian 12) and Android 17 (Debian 13+)                  |
-| `install_software.sh`   | Installs Chromium, VS Code, Clash Verge, Bilibili client; arch- and version-aware             |
-| `update_debian13.sh`    | Upgrades a Debian 12 system to Debian 13 (中文); exits cleanly if already on trixie or newer  |
-| `update_debian13_EN.sh` | Same upgrade script in English                                                                |
-| `auto-start.ps1`        | Windows PowerShell helper: installs ADB + TigerVNC, runs `adb forward`, launches the viewer   |
-| `android_chroot_debian12.md` | Reference docs for the chroot-based (non-AVF) Debian deployment via Magisk + BusyBox      |
+| Platform | Default Debian | Status | Notes |
+|----------|---|---|---|
+| Android 16 Terminal (Baklava) | Debian 12 (bookworm) | ✅ Tested | Stock image, auto-detected |
+| Android 17 Terminal (Cinnamon) | Debian 13 (trixie) | ✅ Tested | Stock image, auto-detected |
+| Desktop/Server Debian 12 | bookworm | ✅ Tested | Full feature support |
+| Desktop/Server Debian 13+ | trixie+ | ✅ Tested | Full feature support |
+| Generic Linux (non-Debian) | N/A | ❌ Unsupported | Debian only |
 
-## Important Notes
+## 🎯 Features
 
-1. VNC password setup prompt appears during first execution — remember your credentials
-2. Script may require multiple confirmations during execution — follow on-screen instructions
-3. Recommended to run in stable network environment for reliable package downloads
-4. After configuration, manage VNC service with:
-   - Start: `sudo systemctl start tigervncserver@:1.service`
-   - Stop: `sudo systemctl stop tigervncserver@:1.service`
-   - Check status: `sudo systemctl status tigervncserver@:1.service`
-5. **Android Linux Terminal upgrade warning**: Multiple users report the in-place bookworm→trixie upgrade can corrupt the AVF VM image, forcing a wipe-and-reinstall from the Terminal app. If you are on Android 16, consider waiting for Android 17 and using the native Debian 13 image instead.
-6. **2026 Update**: Scripts have been optimized for current Debian package versions and dependencies. Ensure your system packages are up-to-date before running.
+- ✅ **Autonomous Mode**: Set and forget - no prompts
+- ✅ **State Management**: Skips completed steps automatically
+- ✅ **Auto-Password**: Generates & saves VNC password
+- ✅ **Smart Locale**: Automatically configures UTF-8 locale
+- ✅ **Modern SSH**: Uses `/etc/ssh/sshd_config.d/` drop-in (Debian 12/13+)
+- ✅ **Bilingual UI**: Full Chinese & English support
+- ✅ **Easy Re-runs**: Safe to run multiple times
+- ✅ **2026 Optimized**: Works with current Debian releases & packages
 
-## Contribution & Feedback
+## 🔧 Installation
 
-We welcome Issues and Pull Requests to improve this project. Please provide detailed error descriptions and reproduction steps when reporting issues.
+### Step 1: Download
+```bash
+# On Android Terminal or Linux
+wget https://raw.githubusercontent.com/usemanusai/Android16-Origin-Debian12-GUI/main/android16-terminal.sh
+chmod +x android16-terminal.sh
+```
 
-## License
+### Step 2: Run (Pick One)
+
+**Option A: Autonomous (Recommended for Android)**
+```bash
+AUTO_MODE=1 ./android16-terminal.sh
+```
+
+**Option B: Interactive (Customization)**
+```bash
+./android16-terminal.sh
+# Select language, desktop, options interactively
+```
+
+### Step 3: Connect
+
+**On Windows/Mac/Linux:**
+```bash
+# If running on Android
+adb forward tcp:5901 tcp:5901
+
+# Open VNC client and connect to
+localhost:5901
+```
+
+Enter the auto-generated password (check `~/.vnc/password.txt` on the device)
+
+## 🔌 Usage Examples
+
+### Example 1: XFCE with Chinese UI (Default)
+```bash
+AUTO_MODE=1 ./android16-terminal.sh
+```
+
+### Example 2: GNOME with English UI
+```bash
+AUTO_MODE=1 DESKTOP=gnome LANG_CHOICE=en ./android16-terminal.sh
+```
+
+### Example 3: KDE Plasma
+```bash
+AUTO_MODE=1 DESKTOP=kde ./android16-terminal.sh
+```
+
+### Example 4: Custom User & Language
+```bash
+AUTO_MODE=1 TARGET_USER=myuser DESKTOP=mate LANG_CHOICE=en ./android16-terminal.sh
+```
+
+## 🔐 SSH Connection
+
+After setup, connect via SSH:
+
+```bash
+# On your PC/Mac/Linux
+ssh -p 10022 username@android-device-ip
+
+# Example
+ssh -p 10022 ubuntu@192.168.1.100
+```
+
+**Security Note**: Change the default password after first login:
+```bash
+passwd
+```
+
+## 🐛 Troubleshooting
+
+### Script Fails to Run
+```bash
+chmod +x android16-terminal.sh
+bash -x ./android16-terminal.sh  # Debug mode
+```
+
+### VNC Password Lost
+```bash
+# Password is stored here
+cat ~/.vnc/password.txt
+
+# Or generate new one
+vncpasswd ~/.vnc/passwd
+```
+
+### Desktop Not Starting
+```bash
+# Reinstall desktop (safe to re-run)
+AUTO_MODE=1 DESKTOP=xfce ./android16-terminal.sh
+```
+
+### Check Installation Status
+```bash
+# View what's been completed
+cat ~/.android-terminal-installer/install.state
+```
+
+## 📦 What Gets Installed
+
+- `openssh-server` (SSH server on port 10022)
+- `tigervnc-standalone-server` & `tigervnc-common` (VNC)
+- `tasksel` (desktop environment selector)
+- `locales` (language support)
+- Selected desktop environment (XFCE, GNOME, KDE, etc.)
+
+**Estimated size**: 1-3 GB depending on desktop choice
+
+## 🛠️ Advanced: Debian Upgrade
+
+If you want to upgrade from Debian 12 → 13 → 14+:
+
+```bash
+# Autonomous upgrade (no prompts)
+AUTO_MODE=1 ./update_debian14.sh
+
+# Interactive upgrade
+./update_debian14.sh
+```
+
+**⚠️ Android Terminal Warning**: In-place upgrades may corrupt the VM image. Consider:
+- Staying on Debian 12 until Android 17 ships
+- Using desktop Debian instead
+
+## 📝 Other Scripts in This Repo
+
+| Script | Purpose |
+|--------|----------|
+| `android16-terminal.sh` | Main installer (2026 optimized, autonomous) |
+| `update_debian14.sh` | Auto upgrade Debian versions (new 2026) |
+| `update_debian13.sh` | Manual upgrade Debian 12→13 (legacy) |
+| `update_debian13_EN.sh` | English version of above |
+| `install_software.sh` | Install Chrome, VS Code, etc. |
+| `auto-start.ps1` | Windows helper (ADB + VNC launcher) |
+
+## 📄 License & Contributing
 
 This project is open-sourced under [MIT License](LICENSE).
 
+**Issues & PRs Welcome!** Please provide:
+- Error messages (run in debug mode: `bash -x script.sh`)
+- Device/OS details (Android version, Debian release)
+- Expected vs actual behavior
+
+## 🔄 2026 Improvements
+
+- ✨ **Autonomous Mode**: Works without any user interaction
+- 🔄 **State Management**: Tracks progress, skips completed steps
+- 🎯 **Auto-Password**: Generates secure VNC password automatically
+- 🚀 **Faster Setup**: ~3-15 minutes depending on internet speed
+- 🛡️ **Better Errors**: Clearer error messages with recovery steps
+- 📱 **Debian 14+ Support**: Future-proof for upcoming releases
+- 🏗️ **Modern SSH Config**: Uses systemd drop-in configuration
+
 ---
 
-**Last Updated**: October 7, 2026
+**Last Updated**: October 7, 2026 | **Version**: 2.1.0
+
+**Get started now**: `AUTO_MODE=1 ./android16-terminal.sh`
