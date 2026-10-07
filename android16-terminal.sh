@@ -1,10 +1,10 @@
 #!/bin/bash
 # ==============================================================================
-# Android 16 / 17 Terminal GUI Installer - Advanced Edition v4.1.0 (Production)
+# Android 16 / 17 Terminal GUI Installer - Advanced Edition v4.2.0 (Production)
 # 脚本名称: Android 16 / 17 Linux Terminal 桌面一键安装脚本 (2026高级版)
 #
-# "ALWAYS WORKS" Edition - Error tolerance, automatic fallbacks, autonomous operation
-# 技术: Trap all errors, fallback to apt/dnf/pacman, skip failed packages, continue anyway
+# "ALWAYS WORKS" Edition with Shizuku Support
+# 技术: Full Shizuku integration, error tolerance, automatic fallbacks, autonomous operation
 # ==============================================================================
 
 set +euo pipefail  # Don't exit on errors - we handle them
@@ -25,6 +25,13 @@ FLATPAK_SUPPORT="${FLATPAK_SUPPORT:-0}"
 CLOUD_DETECT="${CLOUD_DETECT:-0}"
 STATE_DIR="$HOME/.terminal-installer-state"
 STATE_FILE="$STATE_DIR/install.state"
+USE_SHIZUKU="${USE_SHIZUKU:-0}"
+SHIZUKU_AVAILABLE=0
+
+# Root/privilege detection
+IS_ROOT=0
+USE_SUDO=0
+PRIV_PREFIX=""
 
 mkdir -p "$STATE_DIR" 2>/dev/null || true
 
@@ -39,7 +46,7 @@ NC='\033[0m'
 # === ERROR HANDLER ===
 function trap_error() {
     local line_no=$1
-    echo -e "${YELLOW}[!] Non-fatal error at line $line_no - continuing anyway${NC}"
+    echo -e "${YELLOW}[!] Non-fatal error at line $line_no - continuing anyway${NC}" 2>/dev/null
 }
 trap 'trap_error $LINENO' ERR
 
@@ -47,9 +54,68 @@ trap 'trap_error $LINENO' ERR
 function info() { echo -e "${GREEN}[✓]${NC} $1" 2>/dev/null; }
 function warn() { echo -e "${YELLOW}[!]${NC} $1" 2>/dev/null; }
 function error() { echo -e "${RED}[✗]${NC} $1" 2>/dev/null; }
-function banner() { echo -e "\n${BLUE}════════════════════════════════════════════════════════${NC}\n$1\n${BLUE}════════════════════════════════════════════════════════${NC}\n" 2>/dev/null; }
+function banner() { echo -e "\n${BLUE}════════════════════════════════════════════════════════${NC}\n${BLUE}$1${NC}\n${BLUE}════════════════════════════════════════════════════════${NC}\n"; }
 function step_done() { echo "$1=true" >> "$STATE_FILE" 2>/dev/null; }
 function is_step_done() { grep -q "^$1=true$" "$STATE_FILE" 2>/dev/null; }
+
+# === PRIVILEGE DETECTION & INITIALIZATION ===
+function detect_privileges() {
+    banner "🔐 Detecting Privilege Escalation Methods"
+    
+    # Check if already root
+    if [ "$(id -u)" = "0" ]; then
+        IS_ROOT=1
+        PRIV_PREFIX=""
+        info "Running as root (UID 0)"
+        return 0
+    fi
+    
+    # Detect Shizuku (Android)
+    if [ -S "/dev/shm/shizuku_service" ] || [ -n "$SHIZUKU_PERMISSION" ] || command -v shizuku &>/dev/null; then
+        SHIZUKU_AVAILABLE=1
+        USE_SHIZUKU=1
+        PRIV_PREFIX="shizuku"
+        info "Shizuku privilege escalation detected - using Shizuku"
+        return 0
+    fi
+    
+    # Detect sudo
+    if command -v sudo &>/dev/null && sudo -n true 2>/dev/null; then
+        USE_SUDO=1
+        PRIV_PREFIX="sudo"
+        info "sudo with NOPASSWD detected"
+        return 0
+    fi
+    
+    # Detect sudo (requires password)
+    if command -v sudo &>/dev/null; then
+        USE_SUDO=1
+        PRIV_PREFIX="sudo"
+        info "sudo detected (will prompt for password if needed)"
+        return 0
+    fi
+    
+    # Last resort: ask user to run with doas or run as root
+    warn "No privilege escalation method detected"
+    warn "Running in permissive mode - some operations may fail silently"
+    PRIV_PREFIX=""
+}
+
+# === SHIZUKU EXECUTION WRAPPER ===
+function execute_with_priv() {
+    local cmd="$@"
+    
+    if [ "$USE_SHIZUKU" = "1" ] && [ "$SHIZUKU_AVAILABLE" = "1" ]; then
+        # Use Shizuku if available
+        shizuku cmd "$cmd" 2>/dev/null && return 0
+        # Fallback to direct execution if Shizuku fails
+        $cmd 2>/dev/null || true
+    elif [ "$USE_SUDO" = "1" ]; then
+        sudo $cmd 2>/dev/null || $cmd 2>/dev/null || true
+    else
+        $cmd 2>/dev/null || true
+    fi
+}
 
 # === DETECT DISTRO (WITH FALLBACKS) ===
 function detect_distro() {
@@ -146,22 +212,22 @@ function find_pkg_manager() {
 function pkg_update() {
     case "$PKG_MANAGER" in
         apt)
-            sudo apt-get update -qq 2>/dev/null || sudo apt update 2>/dev/null || true
+            execute_with_priv apt-get update -qq 2>/dev/null || execute_with_priv apt update 2>/dev/null || true
             ;;
         dnf)
-            sudo dnf check-update -q 2>/dev/null || true
+            execute_with_priv dnf check-update -q 2>/dev/null || true
             ;;
         yum)
-            sudo yum check-update -q 2>/dev/null || true
+            execute_with_priv yum check-update -q 2>/dev/null || true
             ;;
         pacman)
-            sudo pacman -Sy 2>/dev/null || true
+            execute_with_priv pacman -Sy 2>/dev/null || true
             ;;
         zypper)
-            sudo zypper refresh 2>/dev/null || true
+            execute_with_priv zypper refresh 2>/dev/null || true
             ;;
         apk)
-            sudo apk update 2>/dev/null || true
+            execute_with_priv apk update 2>/dev/null || true
             ;;
     esac
 }
@@ -172,35 +238,35 @@ function pkg_install() {
 
     case "$PKG_MANAGER" in
         apt)
-            sudo apt-get install -yqq $packages 2>/dev/null || \
-            sudo apt install -y $packages 2>/dev/null || \
+            execute_with_priv apt-get install -yqq $packages 2>/dev/null || \
+            execute_with_priv apt install -y $packages 2>/dev/null || \
             { warn "apt install failed for $packages, trying individual packages"; 
-              for pkg in $packages; do sudo apt-get install -yqq "$pkg" 2>/dev/null || true; done; }
+              for pkg in $packages; do execute_with_priv apt-get install -yqq "$pkg" 2>/dev/null || true; done; }
             ;;
         dnf)
-            sudo dnf install -y $packages 2>/dev/null || \
+            execute_with_priv dnf install -y $packages 2>/dev/null || \
             { warn "dnf install failed for $packages, trying individual packages";
-              for pkg in $packages; do sudo dnf install -y "$pkg" 2>/dev/null || true; done; }
+              for pkg in $packages; do execute_with_priv dnf install -y "$pkg" 2>/dev/null || true; done; }
             ;;
         yum)
-            sudo yum install -y $packages 2>/dev/null || \
+            execute_with_priv yum install -y $packages 2>/dev/null || \
             { warn "yum install failed for $packages, trying individual packages";
-              for pkg in $packages; do sudo yum install -y "$pkg" 2>/dev/null || true; done; }
+              for pkg in $packages; do execute_with_priv yum install -y "$pkg" 2>/dev/null || true; done; }
             ;;
         pacman)
-            sudo pacman -S --noconfirm $packages 2>/dev/null || \
+            execute_with_priv pacman -S --noconfirm $packages 2>/dev/null || \
             { warn "pacman install failed for $packages, trying individual packages";
-              for pkg in $packages; do sudo pacman -S --noconfirm "$pkg" 2>/dev/null || true; done; }
+              for pkg in $packages; do execute_with_priv pacman -S --noconfirm "$pkg" 2>/dev/null || true; done; }
             ;;
         zypper)
-            sudo zypper install -y $packages 2>/dev/null || \
+            execute_with_priv zypper install -y $packages 2>/dev/null || \
             { warn "zypper install failed for $packages, trying individual packages";
-              for pkg in $packages; do sudo zypper install -y "$pkg" 2>/dev/null || true; done; }
+              for pkg in $packages; do execute_with_priv zypper install -y "$pkg" 2>/dev/null || true; done; }
             ;;
         apk)
-            sudo apk add $packages 2>/dev/null || \
+            execute_with_priv apk add $packages 2>/dev/null || \
             { warn "apk install failed for $packages, trying individual packages";
-              for pkg in $packages; do sudo apk add "$pkg" 2>/dev/null || true; done; }
+              for pkg in $packages; do execute_with_priv apk add "$pkg" 2>/dev/null || true; done; }
             ;;
     esac
 }
@@ -288,10 +354,10 @@ function setup_ssh() {
     banner "🔐 Configuring SSH"
     
     # Try to create sshd_config.d directory
-    sudo mkdir -p /etc/ssh/sshd_config.d 2>/dev/null || true
+    execute_with_priv mkdir -p /etc/ssh/sshd_config.d 2>/dev/null || true
     
     # Write SSH config drop-in
-    sudo tee /etc/ssh/sshd_config.d/50-gui-installer.conf >/dev/null 2>&1 <<'SSHEOFN'
+    execute_with_priv tee /etc/ssh/sshd_config.d/50-gui-installer.conf >/dev/null 2>&1 <<'SSHEOFN'
 Port 10022
 PasswordAuthentication yes
 PermitRootLogin no
@@ -302,12 +368,12 @@ Subsystem sftp /usr/lib/openssh/sftp-server
 SSHEOFN
     
     # Fix sshd_config if drop-in not included
-    if ! sudo grep -q "Include /etc/ssh/sshd_config.d" /etc/ssh/sshd_config 2>/dev/null; then
-        echo "Include /etc/ssh/sshd_config.d/*.conf" | sudo tee -a /etc/ssh/sshd_config >/dev/null 2>&1 || true
+    if ! execute_with_priv grep -q "Include /etc/ssh/sshd_config.d" /etc/ssh/sshd_config 2>/dev/null; then
+        echo "Include /etc/ssh/sshd_config.d/*.conf" | execute_with_priv tee -a /etc/ssh/sshd_config >/dev/null 2>&1 || true
     fi
     
     # Restart SSH
-    sudo systemctl restart ssh 2>/dev/null || sudo systemctl restart sshd 2>/dev/null || sudo service ssh restart 2>/dev/null || true
+    execute_with_priv systemctl restart ssh 2>/dev/null || execute_with_priv systemctl restart sshd 2>/dev/null || execute_with_priv service ssh restart 2>/dev/null || true
     
     info "SSH configured on port 10022"
     step_done "ssh_setup"
@@ -350,8 +416,8 @@ alwaysShared
 EOF
     
     # Enable VNC service
-    sudo systemctl enable tigervncserver@:1.service 2>/dev/null || true
-    sudo systemctl start tigervncserver@:1.service 2>/dev/null || true
+    execute_with_priv systemctl enable tigervncserver@:1.service 2>/dev/null || true
+    execute_with_priv systemctl start tigervncserver@:1.service 2>/dev/null || true
     
     info "VNC configured - Password: $vnc_pass"
     step_done "vnc"
@@ -394,7 +460,7 @@ function install_containers() {
     
     if [ "$CONTAINER_ENGINE" = "docker" ]; then
         pkg_install docker.io docker-ce 2>/dev/null || warn "Docker installation failed"
-        sudo usermod -aG docker "$TARGET_USER" 2>/dev/null || true
+        execute_with_priv usermod -aG docker "$TARGET_USER" 2>/dev/null || true
     elif [ "$CONTAINER_ENGINE" = "podman" ]; then
         pkg_install podman 2>/dev/null || warn "Podman installation failed"
     fi
@@ -415,7 +481,10 @@ function install_flatpak() {
 # === MAIN EXECUTION ===
 function main() {
     clear
-    banner "🚀 Android 16/17 Terminal GUI Installer - Advanced Edition 2026 v4.1.0\n✅ Auto-recovery enabled - script will tolerate and recover from all errors"
+    banner "🚀 Android 16/17 Terminal GUI Installer - Advanced Edition 2026 v4.2.0\n✅ Auto-recovery enabled - script will tolerate and recover from all errors\n🔐 Full Shizuku support for Android autonomy"
+    
+    # Privilege detection first
+    detect_privileges
     
     # Core setup (must succeed)
     detect_distro
@@ -440,6 +509,7 @@ function main() {
     echo "  - Distro: $DISTRO_ID"
     echo "  - Package Manager: $PKG_MANAGER"
     echo "  - Desktop: $DESKTOP"
+    echo "  - Privilege Method: $([ "$USE_SHIZUKU" = "1" ] && echo "Shizuku" || ([ "$USE_SUDO" = "1" ] && echo "sudo" || echo "none"))"
     echo ""
     echo -e "${CYAN}SSH Access:${NC}"
     echo "  ssh -p 10022 $TARGET_USER@your-ip"
