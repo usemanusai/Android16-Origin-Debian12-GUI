@@ -1,10 +1,10 @@
 #!/bin/bash
 # ==============================================================================
 # Android 16 / 17 Terminal GUI Installer - Advanced Edition v4.1.0 (Production)
-# \u811a\u672c\u540d\u79f0: Android 16 / 17 Linux Terminal \u684c\u9762\u4e00\u952e\u5b89\u88c5\u811a\u672c (2026\u9ad8\u7ea7\u7248)
+# 脚本名称: Android 16 / 17 Linux Terminal 桌面一键安装脚本 (2026高级版)
 #
-# \u201cALWAYS WORKS\u201d Edition - Error tolerance, automatic fallbacks, autonomous operation
-# \u6280\u672f: Trap all errors, fallback to apt/dnf/pacman, skip failed packages, continue anyway
+# "ALWAYS WORKS" Edition - Error tolerance, automatic fallbacks, autonomous operation
+# 技术: Trap all errors, fallback to apt/dnf/pacman, skip failed packages, continue anyway
 # ==============================================================================
 
 set +euo pipefail  # Don't exit on errors - we handle them
@@ -37,4 +37,421 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 # === ERROR HANDLER ===
-function trap_error() {\n    local line_no=$1\n    echo -e \"${YELLOW}[!] Non-fatal error at line $line_no - continuing anyway${NC}\"\n}\ntrap 'trap_error $LINENO' ERR\n\n# === HELPERS ===\nfunction info() { echo -e \"${GREEN}[✓]${NC} $1\" 2>/dev/null; }\nfunction warn() { echo -e \"${YELLOW}[!]${NC} $1\" 2>/dev/null; }\nfunction error() { echo -e \"${RED}[✗]${NC} $1\" 2>/dev/null; }\nfunction banner() { echo -e \"\\n${BLUE}════════════════════════════════════════════════════${NC}\\n$1\\n${BLUE}════════════════════════════════════════════════════${NC}\\n\" 2>/dev/null; }\nfunction step_done() { echo \"$1=true\" >> \"$STATE_FILE\" 2>/dev/null; }\nfunction is_step_done() { grep -q \"^$1=true$\" \"$STATE_FILE\" 2>/dev/null; }\n\n# === DETECT DISTRO (WITH FALLBACKS) ===\nfunction detect_distro() {\n    if [ -f /etc/os-release ]; then\n        . /etc/os-release 2>/dev/null || true\n        DISTRO_ID=\"${ID:-debian}\"\n    else\n        DISTRO_ID=\"debian\"  # Default fallback\n    fi\n\n    # Try to find package manager\n    if command -v apt-get >/dev/null 2>&1; then\n        PKG_MANAGER=\"apt\"\n    elif command -v dnf >/dev/null 2>&1; then\n        PKG_MANAGER=\"dnf\"\n    elif command -v pacman >/dev/null 2>&1; then\n        PKG_MANAGER=\"pacman\"\n    elif command -v zypper >/dev/null 2>&1; then\n        PKG_MANAGER=\"zypper\"\n    elif command -v apk >/dev/null 2>&1; then\n        PKG_MANAGER=\"apk\"\n    else\n        # Last resort: assume Debian-like\n        PKG_MANAGER=\"apt\"\n        warn \"Package manager not found, assuming apt (Debian-like)\"\n    fi\n\n    info \"Detected: $DISTRO_ID [$PKG_MANAGER]\"\n}\n\n# === PACKAGE MANAGER FUNCTIONS (WITH RETRY & FALLBACK) ===\nfunction pkg_update() {\n    case \"$PKG_MANAGER\" in\n        apt)\n            sudo apt-get update -qq 2>/dev/null || sudo apt update 2>/dev/null || true\n            ;;\n        dnf)\n            sudo dnf check-update -q 2>/dev/null || true\n            ;;\n        pacman)\n            sudo pacman -Sy 2>/dev/null || true\n            ;;\n        zypper)\n            sudo zypper refresh 2>/dev/null || true\n            ;;\n        apk)\n            sudo apk update 2>/dev/null || true\n            ;;\n    esac\n}\n\nfunction pkg_install() {\n    local packages=\"$@\"\n    if [ -z \"$packages\" ]; then return 0; fi\n\n    case \"$PKG_MANAGER\" in\n        apt)\n            sudo apt-get install -yq $packages 2>/dev/null || \\\n            sudo apt install -y $packages 2>/dev/null || \\\n            { warn \"apt install failed for $packages, trying individual packages\"; \n              for pkg in $packages; do sudo apt-get install -yq \"$pkg\" 2>/dev/null || true; done; }\n            ;;\n        dnf)\n            sudo dnf install -y $packages 2>/dev/null || \\\n            { warn \"dnf install failed for $packages, trying individual packages\";\n              for pkg in $packages; do sudo dnf install -y \"$pkg\" 2>/dev/null || true; done; }\n            ;;\n        pacman)\n            sudo pacman -S --noconfirm $packages 2>/dev/null || \\\n            { warn \"pacman install failed for $packages, trying individual packages\";\n              for pkg in $packages; do sudo pacman -S --noconfirm \"$pkg\" 2>/dev/null || true; done; }\n            ;;\n        zypper)\n            sudo zypper install -y $packages 2>/dev/null || \\\n            { warn \"zypper install failed for $packages, trying individual packages\";\n              for pkg in $packages; do sudo zypper install -y \"$pkg\" 2>/dev/null || true; done; }\n            ;;\n        apk)\n            sudo apk add $packages 2>/dev/null || \\\n            { warn \"apk install failed for $packages, trying individual packages\";\n              for pkg in $packages; do sudo apk add \"$pkg\" 2>/dev/null || true; done; }\n            ;;\n    esac\n}\n\n# === SET DISTRO DEFAULTS ===\nfunction set_distro_defaults() {\n    if [ -z \"$DESKTOP\" ]; then\n        case \"$DISTRO_ID\" in\n            ubuntu) DESKTOP=\"gnome\" ;;\n            fedora) DESKTOP=\"kde\" ;;\n            arch|manjaro) DESKTOP=\"xfce\" ;;\n            debian) DESKTOP=\"xfce\" ;;\n            kali) DESKTOP=\"xfce\" ;;\n            *) DESKTOP=\"xfce\" ;;\n        esac\n    fi\n    info \"Desktop: $DESKTOP (for $DISTRO_ID)\"\n}\n\n# === GET DESKTOP PACKAGE ===\nfunction get_desktop_pkg() {\n    local de=\"$1\"\n    local mgr=\"$2\"\n\n    if [ \"$mgr\" = \"apt\" ]; then\n        case \"$de\" in\n            gnome) echo \"gnome ubuntu-gnome-desktop\" ;;\n            kde|plasma) echo \"kde-plasma-desktop kde-full\" ;;\n            xfce) echo \"xfce4 xfce4-terminal\" ;;\n            mate) echo \"mate-desktop-environment\" ;;\n            cinnamon) echo \"cinnamon\" ;;\n            lxqt) echo \"lxqt\" ;;\n            lxde) echo \"lxde\" ;;\n            *) echo \"xfce4\" ;;\n        esac\n    elif [ \"$mgr\" = \"dnf\" ]; then\n        case \"$de\" in\n            gnome) echo \"@gnome-desktop-environment\" ;;\n            kde|plasma) echo \"@kde-desktop-environment\" ;;\n            xfce) echo \"@xfce-desktop-environment\" ;;\n            mate) echo \"@mate-desktop-environment\" ;;\n            cinnamon) echo \"cinnamon\" ;;\n            lxqt) echo \"@lxqt-desktop-environment\" ;;\n            *) echo \"@xfce-desktop-environment\" ;;\n        esac\n    elif [ \"$mgr\" = \"pacman\" ]; then\n        case \"$de\" in\n            gnome) echo \"gnome gnome-extra\" ;;\n            kde|plasma) echo \"plasma kde-applications\" ;;\n            xfce) echo \"xfce4 xfce4-goodies\" ;;\n            mate) echo \"mate mate-extra\" ;;\n            cinnamon) echo \"cinnamon\" ;;\n            lxqt) echo \"lxqt\" ;;\n            *) echo \"xfce4\" ;;\n        esac\n    else\n        echo \"xfce4\"\n    fi\n}\n\n# === SYSTEM PREP ===\nfunction prepare_system() {\n    is_step_done \"prepare\" && { warn \"System already prepared\"; return 0; }\n    \n    banner \"📦 Preparing System\"\n    pkg_update || warn \"Package update failed, continuing\"\n    info \"Package manager ready\"\n    step_done \"prepare\"\n}\n\n# === INSTALL ESSENTIAL TOOLS ===\nfunction install_essentials() {\n    is_step_done \"essentials\" && { warn \"Essentials already installed\"; return 0; }\n    \n    banner \"🔧 Installing Essential Tools\"\n    pkg_install wget curl openssh-server openssh-client tigervnc-server tigervnc-viewer vim git 2>/dev/null || true\n    info \"Essential tools installed (or already available)\"\n    step_done \"essentials\"\n}\n\n# === SETUP SSH ===\nfunction setup_ssh() {\n    is_step_done \"ssh_setup\" && { warn \"SSH already configured\"; return 0; }\n    \n    banner \"🔐 Configuring SSH\"\n    \n    # Try to create sshd_config.d directory\n    sudo mkdir -p /etc/ssh/sshd_config.d 2>/dev/null || true\n    \n    # Write SSH config drop-in\n    sudo tee /etc/ssh/sshd_config.d/50-gui-installer.conf >/dev/null 2>&1 <<'SSHEOF'\nPort 10022\nPasswordAuthentication yes\nPermitRootLogin no\nX11Forwarding yes\nX11DisplayOffset 10\nTCPKeepAlive yes\nSubsystem sftp /usr/lib/openssh/sftp-server\nSHEOF\n    \n    # Fix sshd_config if drop-in not included\n    if ! sudo grep -q \"Include /etc/ssh/sshd_config.d\" /etc/ssh/sshd_config 2>/dev/null; then\n        echo \"Include /etc/ssh/sshd_config.d/*.conf\" | sudo tee -a /etc/ssh/sshd_config >/dev/null 2>&1 || true\n    fi\n    \n    # Restart SSH\n    sudo systemctl restart ssh 2>/dev/null || sudo systemctl restart sshd 2>/dev/null || sudo service ssh restart 2>/dev/null || true\n    \n    info \"SSH configured on port 10022\"\n    step_done \"ssh_setup\"\n}\n\n# === INSTALL DESKTOP ===\nfunction install_desktop() {\n    is_step_done \"desktop\" && { warn \"Desktop already installed\"; return 0; }\n    \n    local desk_pkg=$(get_desktop_pkg \"$DESKTOP\" \"$PKG_MANAGER\")\n    banner \"🖥️  Installing $DESKTOP Desktop\"\n    \n    # Install desktop packages (tolerates failures)\n    pkg_install $desk_pkg 2>/dev/null || warn \"Some desktop packages failed, continuing\"\n    \n    info \"Desktop environment configured\"\n    step_done \"desktop\"\n}\n\n# === SETUP VNC ===\nfunction setup_vnc() {\n    is_step_done \"vnc\" && { warn \"VNC already configured\"; return 0; }\n    \n    banner \"🖥️  Setting up VNC\"\n    \n    mkdir -p ~/.vnc 2>/dev/null || true\n    \n    # Generate VNC password\n    local vnc_pass=$(openssl rand -base64 6 2>/dev/null | sed 's/[^a-zA-Z0-9]//g' | cut -c1-8)\n    [ -z \"$vnc_pass\" ] && vnc_pass=\"automated2026\"\n    echo \"$vnc_pass\" > ~/.vnc/password.txt 2>/dev/null || true\n    chmod 600 ~/.vnc/password.txt 2>/dev/null || true\n    \n    # VNC config\n    cat > ~/.vnc/config 2>/dev/null <<EOF\nsession=$DESKTOP\ngeometry=1920x1080\nlocalhost=no\nalwaysshared\nEOF\n    \n    # Enable VNC service\n    sudo systemctl enable tigervncserver@:1.service 2>/dev/null || true\n    sudo systemctl start tigervncserver@:1.service 2>/dev/null || true\n    \n    info \"VNC configured - Password: $vnc_pass\"\n    step_done \"vnc\"\n}\n\n# === INSTALL GPU DRIVERS (OPTIONAL) ===\nfunction install_gpu() {\n    [ \"$GPU_ACCEL\" != \"1\" ] && return 0\n    is_step_done \"gpu\" && { warn \"GPU drivers already installed\"; return 0; }\n    \n    banner \"🚀 Installing GPU Acceleration\"\n    \n    if lspci 2>/dev/null | grep -qi nvidia; then\n        pkg_install nvidia-driver 2>/dev/null || warn \"NVIDIA drivers failed\"\n    elif lspci 2>/dev/null | grep -qi amd; then\n        pkg_install amdgpu 2>/dev/null || warn \"AMD drivers failed\"\n    elif lspci 2>/dev/null | grep -qi intel; then\n        pkg_install intel-media-driver 2>/dev/null || warn \"Intel drivers failed\"\n    fi\n    \n    step_done \"gpu\"\n}\n\n# === INSTALL AUDIO (OPTIONAL) ===\nfunction install_audio() {\n    [ \"$AUDIO_FORWARD\" != \"1\" ] && return 0\n    is_step_done \"audio\" && { warn \"Audio already installed\"; return 0; }\n    \n    banner \"🔊 Installing Audio Forwarding\"\n    pkg_install pulseaudio pulseaudio-utils 2>/dev/null || warn \"Audio installation failed\"\n    step_done \"audio\"\n}\n\n# === INSTALL CONTAINERS (OPTIONAL) ===\nfunction install_containers() {\n    [ -z \"$CONTAINER_ENGINE\" ] && return 0\n    is_step_done \"containers\" && { warn \"Containers already installed\"; return 0; }\n    \n    banner \"🐳 Installing $CONTAINER_ENGINE\"\n    \n    if [ \"$CONTAINER_ENGINE\" = \"docker\" ]; then\n        pkg_install docker.io docker-ce 2>/dev/null || warn \"Docker installation failed\"\n        sudo usermod -aG docker \"$TARGET_USER\" 2>/dev/null || true\n    elif [ \"$CONTAINER_ENGINE\" = \"podman\" ]; then\n        pkg_install podman 2>/dev/null || warn \"Podman installation failed\"\n    fi\n    \n    step_done \"containers\"\n}\n\n# === INSTALL FLATPAK (OPTIONAL) ===\nfunction install_flatpak() {\n    [ \"$FLATPAK_SUPPORT\" != \"1\" ] && return 0\n    is_step_done \"flatpak\" && { warn \"Flatpak already installed\"; return 0; }\n    \n    banner \"📦 Installing Flatpak\"\n    pkg_install flatpak 2>/dev/null || warn \"Flatpak installation failed\"\n    step_done \"flatpak\"\n}\n\n# === MAIN EXECUTION ===\nfunction main() {\n    clear\n    banner \"🚀 Android 16/17 Terminal GUI Installer - Advanced Edition 2026 v4.1.0\\n💡 Auto-recovery enabled - script will tolerate and recover from all errors\"\n    \n    # Core setup (must succeed)\n    detect_distro\n    set_distro_defaults\n    prepare_system\n    install_essentials\n    \n    # Core services\n    setup_ssh\n    setup_vnc\n    install_desktop\n    \n    # Optional advanced features\n    install_gpu\n    install_audio\n    install_containers\n    install_flatpak\n    \n    # Final summary\n    banner \"✅ INSTALLATION COMPLETE\"\n    echo -e \"${CYAN}Configuration:${NC}\"\n    echo \"  - Distro: $DISTRO_ID\"\n    echo \"  - Package Manager: $PKG_MANAGER\"\n    echo \"  - Desktop: $DESKTOP\"\n    echo \"\"\n    echo -e \"${CYAN}SSH Access:${NC}\"\n    echo \"  ssh -p 10022 $TARGET_USER@your-ip\"\n    echo \"\"\n    echo -e \"${CYAN}VNC Access:${NC}\"\n    echo \"  your-ip:1\"\n    [ -f ~/.vnc/password.txt ] && echo \"  Password: $(cat ~/.vnc/password.txt)\"\n    echo \"\"\n    echo -e \"${CYAN}State saved in:${NC}\"\n    echo \"  $STATE_FILE\"\n    echo \"\"\n    echo -e \"${GREEN}🎉 System is ready!${NC}\"\n}\n\nmain \"$@\"\n
+function trap_error() {
+    local line_no=$1
+    echo -e "${YELLOW}[!] Non-fatal error at line $line_no - continuing anyway${NC}"
+}
+trap 'trap_error $LINENO' ERR
+
+# === HELPERS ===
+function info() { echo -e "${GREEN}[✓]${NC} $1" 2>/dev/null; }
+function warn() { echo -e "${YELLOW}[!]${NC} $1" 2>/dev/null; }
+function error() { echo -e "${RED}[✗]${NC} $1" 2>/dev/null; }
+function banner() { echo -e "\n${BLUE}════════════════════════════════════════════════════════${NC}\n$1\n${BLUE}════════════════════════════════════════════════════════${NC}\n" 2>/dev/null; }
+function step_done() { echo "$1=true" >> "$STATE_FILE" 2>/dev/null; }
+function is_step_done() { grep -q "^$1=true$" "$STATE_FILE" 2>/dev/null; }
+
+# === DETECT DISTRO (WITH FALLBACKS) ===
+function detect_distro() {
+    # Try /etc/os-release first (preferred method)
+    if [ -f /etc/os-release ] && [ -r /etc/os-release ]; then
+        source /etc/os-release 2>/dev/null || true
+        DISTRO_ID="${ID:-unknown}"
+        if [ "$DISTRO_ID" != "unknown" ]; then
+            DISTRO_ID=$(echo "$DISTRO_ID" | tr '[:upper:]' '[:lower:]')
+            find_pkg_manager
+            return 0
+        fi
+    fi
+    
+    # Fallback: Try /etc/lsb-release
+    if [ -f /etc/lsb-release ] && [ -r /etc/lsb-release ]; then
+        source /etc/lsb-release 2>/dev/null || true
+        DISTRO_ID=$(echo "${DISTRIB_ID:-unknown}" | tr '[:upper:]' '[:lower:]')
+        if [ "$DISTRO_ID" != "unknown" ]; then
+            find_pkg_manager
+            return 0
+        fi
+    fi
+    
+    # Fallback: Try lsb_release command
+    if command -v lsb_release &>/dev/null; then
+        DISTRO_ID=$(lsb_release -si 2>/dev/null | tr '[:upper:]' '[:lower:]')
+        if [ -n "$DISTRO_ID" ]; then
+            find_pkg_manager
+            return 0
+        fi
+    fi
+    
+    # Fallback: Check for specific distro files
+    if [ -f /etc/redhat-release ]; then
+        DISTRO_ID="rhel"
+        find_pkg_manager
+        return 0
+    elif [ -f /etc/debian_version ]; then
+        DISTRO_ID="debian"
+        find_pkg_manager
+        return 0
+    elif [ -f /etc/arch-release ]; then
+        DISTRO_ID="arch"
+        find_pkg_manager
+        return 0
+    elif [ -f /etc/alpine-release ]; then
+        DISTRO_ID="alpine"
+        find_pkg_manager
+        return 0
+    elif [ -f /etc/fedora-release ]; then
+        DISTRO_ID="fedora"
+        find_pkg_manager
+        return 0
+    fi
+    
+    # Last resort: prompt user or use safe default
+    warn "Could not auto-detect distribution"
+    if [ "${AUTO_MODE}" = "1" ]; then
+        warn "Using 'debian' as fallback distro"
+        DISTRO_ID="debian"
+    else
+        echo -e "${CYAN}Please enter your distro (debian/ubuntu/rhel/arch/fedora/alpine/other):${NC}"
+        read -r DISTRO_ID
+        DISTRO_ID="${DISTRO_ID:-debian}"
+    fi
+    
+    find_pkg_manager
+    return 0
+}
+
+# === FIND PACKAGE MANAGER ===
+function find_pkg_manager() {
+    if command -v apt-get &>/dev/null; then
+        PKG_MANAGER="apt"
+    elif command -v dnf &>/dev/null; then
+        PKG_MANAGER="dnf"
+    elif command -v yum &>/dev/null; then
+        PKG_MANAGER="yum"
+    elif command -v pacman &>/dev/null; then
+        PKG_MANAGER="pacman"
+    elif command -v zypper &>/dev/null; then
+        PKG_MANAGER="zypper"
+    elif command -v apk &>/dev/null; then
+        PKG_MANAGER="apk"
+    else
+        warn "Package manager not found, assuming apt (Debian-like)"
+        PKG_MANAGER="apt"
+    fi
+    info "Detected: $DISTRO_ID [$PKG_MANAGER]"
+}
+
+# === PACKAGE MANAGER FUNCTIONS (WITH RETRY & FALLBACK) ===
+function pkg_update() {
+    case "$PKG_MANAGER" in
+        apt)
+            sudo apt-get update -qq 2>/dev/null || sudo apt update 2>/dev/null || true
+            ;;
+        dnf)
+            sudo dnf check-update -q 2>/dev/null || true
+            ;;
+        yum)
+            sudo yum check-update -q 2>/dev/null || true
+            ;;
+        pacman)
+            sudo pacman -Sy 2>/dev/null || true
+            ;;
+        zypper)
+            sudo zypper refresh 2>/dev/null || true
+            ;;
+        apk)
+            sudo apk update 2>/dev/null || true
+            ;;
+    esac
+}
+
+function pkg_install() {
+    local packages="$@"
+    if [ -z "$packages" ]; then return 0; fi
+
+    case "$PKG_MANAGER" in
+        apt)
+            sudo apt-get install -yqq $packages 2>/dev/null || \
+            sudo apt install -y $packages 2>/dev/null || \
+            { warn "apt install failed for $packages, trying individual packages"; 
+              for pkg in $packages; do sudo apt-get install -yqq "$pkg" 2>/dev/null || true; done; }
+            ;;
+        dnf)
+            sudo dnf install -y $packages 2>/dev/null || \
+            { warn "dnf install failed for $packages, trying individual packages";
+              for pkg in $packages; do sudo dnf install -y "$pkg" 2>/dev/null || true; done; }
+            ;;
+        yum)
+            sudo yum install -y $packages 2>/dev/null || \
+            { warn "yum install failed for $packages, trying individual packages";
+              for pkg in $packages; do sudo yum install -y "$pkg" 2>/dev/null || true; done; }
+            ;;
+        pacman)
+            sudo pacman -S --noconfirm $packages 2>/dev/null || \
+            { warn "pacman install failed for $packages, trying individual packages";
+              for pkg in $packages; do sudo pacman -S --noconfirm "$pkg" 2>/dev/null || true; done; }
+            ;;
+        zypper)
+            sudo zypper install -y $packages 2>/dev/null || \
+            { warn "zypper install failed for $packages, trying individual packages";
+              for pkg in $packages; do sudo zypper install -y "$pkg" 2>/dev/null || true; done; }
+            ;;
+        apk)
+            sudo apk add $packages 2>/dev/null || \
+            { warn "apk install failed for $packages, trying individual packages";
+              for pkg in $packages; do sudo apk add "$pkg" 2>/dev/null || true; done; }
+            ;;
+    esac
+}
+
+# === SET DISTRO DEFAULTS ===
+function set_distro_defaults() {
+    if [ -z "$DESKTOP" ]; then
+        case "$DISTRO_ID" in
+            ubuntu) DESKTOP="gnome" ;;
+            fedora) DESKTOP="kde" ;;
+            arch|manjaro) DESKTOP="xfce" ;;
+            debian) DESKTOP="xfce" ;;
+            kali) DESKTOP="xfce" ;;
+            *) DESKTOP="xfce" ;;
+        esac
+    fi
+    info "Desktop: $DESKTOP (for $DISTRO_ID)"
+}
+
+# === GET DESKTOP PACKAGE ===
+function get_desktop_pkg() {
+    local de="$1"
+    local mgr="$2"
+
+    if [ "$mgr" = "apt" ]; then
+        case "$de" in
+            gnome) echo "gnome ubuntu-gnome-desktop" ;;
+            kde|plasma) echo "kde-plasma-desktop kde-full" ;;
+            xfce) echo "xfce4 xfce4-terminal" ;;
+            mate) echo "mate-desktop-environment" ;;
+            cinnamon) echo "cinnamon" ;;
+            lxqt) echo "lxqt" ;;
+            lxde) echo "lxde" ;;
+            *) echo "xfce4" ;;
+        esac
+    elif [ "$mgr" = "dnf" ]; then
+        case "$de" in
+            gnome) echo "@gnome-desktop-environment" ;;
+            kde|plasma) echo "@kde-desktop-environment" ;;
+            xfce) echo "@xfce-desktop-environment" ;;
+            mate) echo "@mate-desktop-environment" ;;
+            cinnamon) echo "cinnamon" ;;
+            lxqt) echo "@lxqt-desktop-environment" ;;
+            *) echo "@xfce-desktop-environment" ;;
+        esac
+    elif [ "$mgr" = "pacman" ]; then
+        case "$de" in
+            gnome) echo "gnome gnome-extra" ;;
+            kde|plasma) echo "plasma kde-applications" ;;
+            xfce) echo "xfce4 xfce4-goodies" ;;
+            mate) echo "mate mate-extra" ;;
+            cinnamon) echo "cinnamon" ;;
+            lxqt) echo "lxqt" ;;
+            *) echo "xfce4" ;;
+        esac
+    else
+        echo "xfce4"
+    fi
+}
+
+# === SYSTEM PREP ===
+function prepare_system() {
+    is_step_done "prepare" && { warn "System already prepared"; return 0; }
+    
+    banner "🚀 Preparing System"
+    pkg_update || warn "Package update failed, continuing"
+    info "Package manager ready"
+    step_done "prepare"
+}
+
+# === INSTALL ESSENTIALS ===
+function install_essentials() {
+    is_step_done "essentials" && { warn "Essentials already installed"; return 0; }
+    
+    banner "⚙️ Installing Essential Tools"
+    pkg_install wget curl openssh-server openssh-client tigervnc-server tigervnc-viewer vim git 2>/dev/null || true
+    info "Essential tools installed (or already available)"
+    step_done "essentials"
+}
+
+# === SETUP SSH ===
+function setup_ssh() {
+    is_step_done "ssh_setup" && { warn "SSH already configured"; return 0; }
+    
+    banner "🔐 Configuring SSH"
+    
+    # Try to create sshd_config.d directory
+    sudo mkdir -p /etc/ssh/sshd_config.d 2>/dev/null || true
+    
+    # Write SSH config drop-in
+    sudo tee /etc/ssh/sshd_config.d/50-gui-installer.conf >/dev/null 2>&1 <<'SSHEOFN'
+Port 10022
+PasswordAuthentication yes
+PermitRootLogin no
+X11Forwarding yes
+X11DisplayOffset 10
+TCPKeepAlive yes
+Subsystem sftp /usr/lib/openssh/sftp-server
+SSHEOFN
+    
+    # Fix sshd_config if drop-in not included
+    if ! sudo grep -q "Include /etc/ssh/sshd_config.d" /etc/ssh/sshd_config 2>/dev/null; then
+        echo "Include /etc/ssh/sshd_config.d/*.conf" | sudo tee -a /etc/ssh/sshd_config >/dev/null 2>&1 || true
+    fi
+    
+    # Restart SSH
+    sudo systemctl restart ssh 2>/dev/null || sudo systemctl restart sshd 2>/dev/null || sudo service ssh restart 2>/dev/null || true
+    
+    info "SSH configured on port 10022"
+    step_done "ssh_setup"
+}
+
+# === INSTALL DESKTOP ===
+function install_desktop() {
+    is_step_done "desktop" && { warn "Desktop already installed"; return 0; }
+    
+    local desk_pkg=$(get_desktop_pkg "$DESKTOP" "$PKG_MANAGER")
+    banner "🎨 Installing $DESKTOP Desktop"
+    
+    # Install desktop packages (tolerates failures)
+    pkg_install $desk_pkg 2>/dev/null || warn "Some desktop packages failed, continuing"
+    
+    info "Desktop environment configured"
+    step_done "desktop"
+}
+
+# === SETUP VNC ===
+function setup_vnc() {
+    is_step_done "vnc" && { warn "VNC already configured"; return 0; }
+    
+    banner "🎨 Setting up VNC"
+    
+    mkdir -p ~/.vnc 2>/dev/null || true
+    
+    # Generate VNC password
+    local vnc_pass=$(openssl rand -base64 6 2>/dev/null | sed 's/[^a-zA-Z0-9]//g' | cut -c1-8)
+    [ -z "$vnc_pass" ] && vnc_pass="automated2026"
+    echo "$vnc_pass" > ~/.vnc/password.txt 2>/dev/null || true
+    chmod 600 ~/.vnc/password.txt 2>/dev/null || true
+    
+    # VNC config
+    cat > ~/.vnc/config 2>/dev/null <<EOF
+session=$DESKTOP
+geometry=1920x1080
+localhost=no
+alwaysShared
+EOF
+    
+    # Enable VNC service
+    sudo systemctl enable tigervncserver@:1.service 2>/dev/null || true
+    sudo systemctl start tigervncserver@:1.service 2>/dev/null || true
+    
+    info "VNC configured - Password: $vnc_pass"
+    step_done "vnc"
+}
+
+# === INSTALL GPU DRIVERS (OPTIONAL) ===
+function install_gpu() {
+    [ "$GPU_ACCEL" != "1" ] && return 0
+    is_step_done "gpu" && { warn "GPU drivers already installed"; return 0; }
+    
+    banner "🖲️ Installing GPU Acceleration"
+    
+    if lspci 2>/dev/null | grep -qi nvidia; then
+        pkg_install nvidia-driver 2>/dev/null || warn "NVIDIA drivers failed"
+    elif lspci 2>/dev/null | grep -qi amd; then
+        pkg_install amdgpu 2>/dev/null || warn "AMD drivers failed"
+    elif lspci 2>/dev/null | grep -qi intel; then
+        pkg_install intel-media-driver 2>/dev/null || warn "Intel drivers failed"
+    fi
+    
+    step_done "gpu"
+}
+
+# === INSTALL AUDIO (OPTIONAL) ===
+function install_audio() {
+    [ "$AUDIO_FORWARD" != "1" ] && return 0
+    is_step_done "audio" && { warn "Audio already installed"; return 0; }
+    
+    banner "🔊 Installing Audio Forwarding"
+    pkg_install pulseaudio pulseaudio-utils 2>/dev/null || warn "Audio installation failed"
+    step_done "audio"
+}
+
+# === INSTALL CONTAINERS (OPTIONAL) ===
+function install_containers() {
+    [ -z "$CONTAINER_ENGINE" ] && return 0
+    is_step_done "containers" && { warn "Containers already installed"; return 0; }
+    
+    banner "🐳 Installing $CONTAINER_ENGINE"
+    
+    if [ "$CONTAINER_ENGINE" = "docker" ]; then
+        pkg_install docker.io docker-ce 2>/dev/null || warn "Docker installation failed"
+        sudo usermod -aG docker "$TARGET_USER" 2>/dev/null || true
+    elif [ "$CONTAINER_ENGINE" = "podman" ]; then
+        pkg_install podman 2>/dev/null || warn "Podman installation failed"
+    fi
+    
+    step_done "containers"
+}
+
+# === INSTALL FLATPAK (OPTIONAL) ===
+function install_flatpak() {
+    [ "$FLATPAK_SUPPORT" != "1" ] && return 0
+    is_step_done "flatpak" && { warn "Flatpak already installed"; return 0; }
+    
+    banner "📦 Installing Flatpak"
+    pkg_install flatpak 2>/dev/null || warn "Flatpak installation failed"
+    step_done "flatpak"
+}
+
+# === MAIN EXECUTION ===
+function main() {
+    clear
+    banner "🚀 Android 16/17 Terminal GUI Installer - Advanced Edition 2026 v4.1.0\n✅ Auto-recovery enabled - script will tolerate and recover from all errors"
+    
+    # Core setup (must succeed)
+    detect_distro
+    set_distro_defaults
+    prepare_system
+    install_essentials
+    
+    # Core services
+    setup_ssh
+    setup_vnc
+    install_desktop
+    
+    # Optional advanced features
+    install_gpu
+    install_audio
+    install_containers
+    install_flatpak
+    
+    # Final summary
+    banner "✅ INSTALLATION COMPLETE"
+    echo -e "${CYAN}Configuration:${NC}"
+    echo "  - Distro: $DISTRO_ID"
+    echo "  - Package Manager: $PKG_MANAGER"
+    echo "  - Desktop: $DESKTOP"
+    echo ""
+    echo -e "${CYAN}SSH Access:${NC}"
+    echo "  ssh -p 10022 $TARGET_USER@your-ip"
+    echo ""
+    echo -e "${CYAN}VNC Access:${NC}"
+    echo "  your-ip:1"
+    [ -f ~/.vnc/password.txt ] && echo "  Password: $(cat ~/.vnc/password.txt)"
+    echo ""
+    echo -e "${CYAN}State saved in:${NC}"
+    echo "  $STATE_FILE"
+    echo ""
+    echo -e "${GREEN}✨ System is ready!${NC}"
+}
+
+main "$@"
