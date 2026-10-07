@@ -27,6 +27,7 @@ STATE_DIR="$HOME/.terminal-installer-state"
 STATE_FILE="$STATE_DIR/install.state"
 USE_SHIZUKU="${USE_SHIZUKU:-0}"
 SHIZUKU_AVAILABLE=0
+SHIZUKU_SETUP=0
 
 # Root/privilege detection
 IS_ROOT=0
@@ -54,7 +55,7 @@ trap 'trap_error $LINENO' ERR
 function info() { echo -e "${GREEN}[✓]${NC} $1" 2>/dev/null; }
 function warn() { echo -e "${YELLOW}[!]${NC} $1" 2>/dev/null; }
 function error() { echo -e "${RED}[✗]${NC} $1" 2>/dev/null; }
-function banner() { echo -e "\n${BLUE}════════════════════════════════════════════════════════${NC}\n${BLUE}$1${NC}\n${BLUE}════════════════════════════════════════════════════════${NC}\n"; }
+function banner() { echo -e "\n${BLUE}════════════════════════════════════════════════════════${NC}\n${CYAN}$1${NC}\n${BLUE}════════════════════════════════════════════════════════${NC}\n"; }
 function step_done() { echo "$1=true" >> "$STATE_FILE" 2>/dev/null; }
 function is_step_done() { grep -q "^$1=true$" "$STATE_FILE" 2>/dev/null; }
 
@@ -101,19 +102,68 @@ function detect_privileges() {
     PRIV_PREFIX=""
 }
 
-# === SHIZUKU EXECUTION WRAPPER ===
+# === SHIZUKU SETUP & DAEMON INITIALIZATION ===
+function setup_shizuku() {
+    is_step_done "shizuku_setup" && { warn "Shizuku already configured"; return 0; }
+    
+    banner "🔐 Setting up Shizuku Privilege System"
+    
+    # Install Shizuku CLI if needed
+    if ! command -v shizuku &>/dev/null; then
+        info "Installing Shizuku CLI tools..."
+        pkg_install shizuku-cli 2>/dev/null || \
+        { warn "Shizuku CLI not in repos, attempting manual setup"; }
+    fi
+    
+    # Create Shizuku socket directory
+    mkdir -p /dev/shm 2>/dev/null || true
+    
+    # Initialize Shizuku daemon (Android side - will be picked up when running)
+    if command -v shizuku &>/dev/null; then
+        info "Shizuku CLI available - daemon will initialize on first privileged call"
+        SHIZUKU_SETUP=1
+        SHIZUKU_AVAILABLE=1
+        USE_SHIZUKU=1
+    fi
+    
+    # Setup Shizuku permission file for daemon recognition
+    mkdir -p "$HOME/.shizuku" 2>/dev/null || true
+    touch "$HOME/.shizuku/enable" 2>/dev/null || true
+    chmod 600 "$HOME/.shizuku/enable" 2>/dev/null || true
+    
+    # Create wrapper for Shizuku commands
+    if [ "$SHIZUKU_AVAILABLE" = "1" ]; then
+        info "Shizuku system initialized and ready"
+        step_done "shizuku_setup"
+        return 0
+    else
+        warn "Shizuku not fully available - proceeding with fallback privilege methods"
+        return 0
+    fi
+}
+
+# === ENHANCED SHIZUKU EXECUTION WRAPPER ===
 function execute_with_priv() {
     local cmd="$@"
     
     if [ "$USE_SHIZUKU" = "1" ] && [ "$SHIZUKU_AVAILABLE" = "1" ]; then
-        # Use Shizuku if available
-        shizuku cmd "$cmd" 2>/dev/null && return 0
+        # Try direct Shizuku execution first
+        if shizuku cmd "$cmd" 2>/dev/null; then
+            return 0
+        fi
+        # Try Shizuku shell wrapper
+        if echo "$cmd" | shizuku shell 2>/dev/null; then
+            return 0
+        fi
         # Fallback to direct execution if Shizuku fails
-        $cmd 2>/dev/null || true
+        eval "$cmd" 2>/dev/null || true
+        return 0
     elif [ "$USE_SUDO" = "1" ]; then
-        sudo $cmd 2>/dev/null || $cmd 2>/dev/null || true
+        sudo $cmd 2>/dev/null || eval "$cmd" 2>/dev/null || true
+        return 0
     else
-        $cmd 2>/dev/null || true
+        eval "$cmd" 2>/dev/null || true
+        return 0
     fi
 }
 
@@ -372,8 +422,12 @@ SSHEOFN
         echo "Include /etc/ssh/sshd_config.d/*.conf" | execute_with_priv tee -a /etc/ssh/sshd_config >/dev/null 2>&1 || true
     fi
     
-    # Restart SSH
-    execute_with_priv systemctl restart ssh 2>/dev/null || execute_with_priv systemctl restart sshd 2>/dev/null || execute_with_priv service ssh restart 2>/dev/null || true
+    # Restart SSH (with multiple attempts and fallbacks)
+    execute_with_priv systemctl restart ssh 2>/dev/null || \
+    execute_with_priv systemctl restart sshd 2>/dev/null || \
+    execute_with_priv service ssh restart 2>/dev/null || \
+    execute_with_priv service sshd restart 2>/dev/null || \
+    { warn "SSH restart failed, may need manual restart"; }
     
     info "SSH configured on port 10022"
     step_done "ssh_setup"
@@ -486,6 +540,11 @@ function main() {
     # Privilege detection first
     detect_privileges
     
+    # Setup Shizuku if available (before core setup)
+    if [ "$USE_SHIZUKU" = "1" ]; then
+        setup_shizuku
+    fi
+    
     # Core setup (must succeed)
     detect_distro
     set_distro_defaults
@@ -509,7 +568,7 @@ function main() {
     echo "  - Distro: $DISTRO_ID"
     echo "  - Package Manager: $PKG_MANAGER"
     echo "  - Desktop: $DESKTOP"
-    echo "  - Privilege Method: $([ "$USE_SHIZUKU" = "1" ] && echo "Shizuku" || ([ "$USE_SUDO" = "1" ] && echo "sudo" || echo "none"))"
+    echo "  - Privilege Method: $([ "$USE_SHIZUKU" = "1" ] && echo "Shizuku (Daemon: $([ "$SHIZUKU_SETUP" = "1" ] && echo "Ready" || echo "Check Android"))" || ([ "$USE_SUDO" = "1" ] && echo "sudo" || echo "none"))"
     echo ""
     echo -e "${CYAN}SSH Access:${NC}"
     echo "  ssh -p 10022 $TARGET_USER@your-ip"
@@ -521,7 +580,12 @@ function main() {
     echo -e "${CYAN}State saved in:${NC}"
     echo "  $STATE_FILE"
     echo ""
-    echo -e "${GREEN}✨ System is ready!${NC}"
+    if [ "$USE_SHIZUKU" = "1" ] && [ "$SHIZUKU_SETUP" = "1" ]; then
+        echo -e "${GREEN}✨ System is ready with Shizuku privilege escalation!${NC}"
+        echo -e "${YELLOW}Note: Ensure Shizuku app is running on your Android device${NC}"
+    else
+        echo -e "${GREEN}✨ System is ready!${NC}"
+    fi
 }
 
 main "$@"
